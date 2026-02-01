@@ -123,6 +123,11 @@ Les fichiers suivants ne sont **pas** dans le repo (voir `.gitignore`) :
 
 Sur le plan **Free**, le système de fichiers est **éphémère** : à chaque redéploiement ou réveil, les fichiers créés par l’app (config, listes) peuvent être perdus. Pour une config durable, privilégie les **variables d’environnement** (pays autorisés via `ALLOWED_COUNTRIES`, etc.).
 
+### Sessions et déconnexions
+
+- **Admin (OzyAdmin)** : la session est stockée **en mémoire**. Sur Render **Free**, l’instance s’endort après ~15 min d’inactivité ; au réveil, le processus redémarre et la session est perdue → il faut se reconnecter à `/admin`. Sur un plan payant (instance toujours active), la session reste valide jusqu’à expiration (7 jours) ou déconnexion.
+- **Clients VBV (liste dans le panel)** : la liste des visiteurs sur la page VBV est aussi en mémoire. Un visiteur est marqué « hors ligne » après **45 s** sans heartbeat, et retiré de la liste après **~2 min** sans activité. Si l’instance Render redémarre (sleep ou redeploy), la liste est vidée. Les heartbeats sont envoyés toutes les 5 s par le client ; ces délais évitent des déconnexions trop rapides en cas de micro-coupures réseau.
+
 ---
 
 ## 5. Mises à jour (re-déploiement)

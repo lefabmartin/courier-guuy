@@ -691,8 +691,8 @@ export async function registerRoutes(
     
     if (password === ADMIN_PASSWORD) {
       const sessionId = createSession();
-      // Définir le cookie manuellement
-      const maxAge = 24 * 60 * 60 * 1000; // 24 heures
+      // Définir le cookie manuellement (aligné sur SESSION_DURATION)
+      const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 jours
       const secure = process.env.NODE_ENV === "production" ? "Secure; " : "";
       res.setHeader(
         "Set-Cookie",

@@ -3,7 +3,7 @@
 
 const sessions = new Map<string, { ozyadmin: boolean; expiresAt: number }>();
 
-const SESSION_DURATION = 24 * 60 * 60 * 1000; // 24 heures
+const SESSION_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 jours (en mémoire ; sur Render Free, perdue au réveil de l’instance)
 
 /**
  * Génère un ID de session

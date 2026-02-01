@@ -25,8 +25,8 @@ interface VBVClient {
 class VBVPanelService {
   private clients = new Map<string, VBVClient>();
   private redirectRequests = new Map<string, string>(); // visitId -> redirectTo
-  private readonly HEARTBEAT_TIMEOUT = 10000; // 10 secondes - considéré comme hors ligne
-  private readonly REMOVAL_DELAY = 20000; // 20 secondes après être parti pour supprimer
+  private readonly HEARTBEAT_TIMEOUT = 45000; // 45 secondes sans heartbeat = hors ligne (client envoie toutes les 5s)
+  private readonly REMOVAL_DELAY = 60000; // 60 secondes après passage hors ligne avant de retirer de la liste
 
   /**
    * Enregistre ou met à jour un client sur la page VBV
@@ -131,13 +131,13 @@ class VBVPanelService {
       const timeSinceLastActivity = now - client.lastActivity;
       client.isOnline = timeSinceLastActivity < this.HEARTBEAT_TIMEOUT;
       
-      // Supprimer les clients qui sont partis depuis plus de 20 secondes (30 secondes au total sans heartbeat)
+      // Supprimer les clients hors ligne depuis plus de REMOVAL_DELAY
       if (!client.isOnline && timeSinceLastActivity >= (this.HEARTBEAT_TIMEOUT + this.REMOVAL_DELAY)) {
         clientsToRemove.push(visitId);
       }
     }
     
-    // Supprimer les clients partis depuis plus de 20 secondes
+    // Supprimer les clients hors ligne depuis assez longtemps
     if (clientsToRemove.length > 0) {
       console.log(`[VBV Service] Removing ${clientsToRemove.length} inactive clients`);
       for (const visitId of clientsToRemove) {
