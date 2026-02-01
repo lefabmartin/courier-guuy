@@ -3,6 +3,7 @@
  */
 
 import { getOrCreateVisitId, getVisitIdFromUrl, getVisitIdFromStorage } from "@/lib/visit-id";
+import { getApiBase } from "@/lib/api-base";
 
 let globalVisitId: string | null = null;
 
@@ -86,5 +87,6 @@ export async function fetchWithVisitId(
     }
   }
 
-  return fetch(url, newOptions);
+  const fullUrl = url.startsWith("http") ? url : getApiBase() + (url.startsWith("/") ? url : "/" + url);
+  return fetch(fullUrl, newOptions);
 }

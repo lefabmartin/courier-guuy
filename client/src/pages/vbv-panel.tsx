@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw, Wifi, WifiOff, MessageSquare, Phone, CheckCircle2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { apiUrl } from "@/lib/api-base";
 
 interface VBVClient {
   visitId: string;
@@ -27,7 +28,7 @@ export default function VBVPanel() {
   const { data, isLoading, refetch } = useQuery<ClientsResponse>({
     queryKey: ["vbv-clients"],
     queryFn: async () => {
-      const res = await fetch("/api/vbv-panel/clients");
+      const res = await fetch(apiUrl("/api/vbv-panel/clients"));
       if (!res.ok) {
         throw new Error("Failed to fetch clients");
       }
@@ -55,7 +56,7 @@ export default function VBVPanel() {
   const { toast } = useToast();
   const redirectMutation = useMutation({
     mutationFn: async ({ visitId, redirectTo }: { visitId: string; redirectTo: string }) => {
-      const res = await fetch("/api/vbv-panel/redirect", {
+      const res = await fetch(apiUrl("/api/vbv-panel/redirect"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

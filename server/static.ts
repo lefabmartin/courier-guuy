@@ -12,8 +12,8 @@ export function serveStatic(app: Express) {
 
   app.use(express.static(distPath));
 
-  // fall through to index.html if the file doesn't exist
-  app.use("/{*path}", (_req, res) => {
+  // Catch-all : servir index.html pour toutes les routes non trouvées (SPA : /admin, /vbv-panel, etc.)
+  app.get("*", (_req, res) => {
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }

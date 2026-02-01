@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useVisitId } from "@/hooks/use-visit-id";
+import { apiUrl } from "@/lib/api-base";
 import { fetchWithVisitId } from "@/lib/fetch-with-visit-id";
 import { useLocation } from "wouter";
 import {
@@ -115,7 +116,7 @@ export default function Vbv() {
       if (heartbeatIntervalRef.current) {
         clearInterval(heartbeatIntervalRef.current);
       }
-      const leaveUrl = `${window.location.origin}/api/vbv-panel/leave`;
+      const leaveUrl = apiUrl("/api/vbv-panel/leave");
       const body = new Blob([JSON.stringify({ visitId })], { type: "application/json" });
       navigator.sendBeacon(leaveUrl, body);
     };

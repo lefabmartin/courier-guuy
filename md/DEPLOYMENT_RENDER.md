@@ -88,6 +88,8 @@ Si tu ne le définis pas, le défaut est `music2018` (à changer en production).
 
 Tu peux ajouter ces variables plus tard dans **Environment**.
 
+**Si le site est servi depuis un autre domaine que le backend** (ex. front en statique sur `thcourierguy.cpem.info`, backend sur Render) : au **build**, définis `VITE_API_ORIGIN` avec l’URL du backend (ex. `https://courier-guuy-xxxx.onrender.com`). Ainsi les appels API (`/api/telegram/send`, etc.) partent vers le bon serveur. Sur Render, ajoute `VITE_API_ORIGIN` dans **Environment** avec la valeur de l’URL du service (même URL que le site si tout est sur le même service).
+
 > **Important :** Ne définis **pas** `PORT` : Render l’injecte automatiquement. L’app utilise déjà `process.env.PORT || "3000"`.
 
 ---
