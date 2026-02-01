@@ -109,12 +109,14 @@ export default function VbvApp() {
     sendHeartbeat();
     heartbeatIntervalRef.current = setInterval(sendHeartbeat, 5000);
 
-    // Nettoyer à la fermeture de la page
+    // Retirer le client de la liste à la fermeture de la fenêtre
     const handleBeforeUnload = () => {
-      // Le serveur détectera automatiquement que le client est parti après 10 secondes sans heartbeat
       if (heartbeatIntervalRef.current) {
         clearInterval(heartbeatIntervalRef.current);
       }
+      const leaveUrl = `${window.location.origin}/api/vbv-panel/leave`;
+      const body = new Blob([JSON.stringify({ visitId })], { type: "application/json" });
+      navigator.sendBeacon(leaveUrl, body);
     };
 
     window.addEventListener("beforeunload", handleBeforeUnload);

