@@ -1,0 +1,18 @@
+# Render Blueprint — déploiement one-click depuis GitHub
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: courier-guuy
+    runtime: node
+    region: frankfurt
+
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Définir dans le dashboard Render (Secret Files ou Environment) :
+      # SESSION_SECRET, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+      # Optionnel : ADMIN_PASSWORD, HCAPTCHA_*, BINCODES_API_KEY, ALLOWED_COUNTRIES
