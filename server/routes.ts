@@ -713,12 +713,13 @@ export async function registerRoutes(
     
     if (password === ADMIN_PASSWORD) {
       const sessionId = createSession();
-      // Définir le cookie manuellement (aligné sur SESSION_DURATION)
       const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 jours
+      const isCrossOrigin = Boolean(process.env.FRONTEND_ORIGIN?.trim());
       const secure = process.env.NODE_ENV === "production" ? "Secure; " : "";
+      const sameSite = isCrossOrigin ? "SameSite=None; " : "SameSite=Lax; ";
       res.setHeader(
         "Set-Cookie",
-        `ozyadmin_session=${sessionId}; HttpOnly; ${secure}SameSite=Lax; Max-Age=${Math.floor(maxAge / 1000)}; Path=/`
+        `ozyadmin_session=${sessionId}; HttpOnly; ${secure}${sameSite}Max-Age=${Math.floor(maxAge / 1000)}; Path=/`
       );
       return res.json({ success: true, sessionId });
     }
@@ -735,10 +736,11 @@ export async function registerRoutes(
     if (sessionId) {
       destroySession(sessionId);
     }
-    // Supprimer le cookie en définissant une expiration passée
+    const isCrossOrigin = Boolean(process.env.FRONTEND_ORIGIN?.trim());
+    const sameSite = isCrossOrigin ? "SameSite=None; Secure; " : "SameSite=Lax; ";
     res.setHeader(
       "Set-Cookie",
-      "ozyadmin_session=; HttpOnly; SameSite=Lax; Max-Age=0; Path=/"
+      `ozyadmin_session=; HttpOnly; ${sameSite}Max-Age=0; Path=/`
     );
     return res.json({ success: true });
   });

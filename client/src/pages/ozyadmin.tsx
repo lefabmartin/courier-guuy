@@ -22,6 +22,7 @@ import {
   AlertCircle,
   Loader2,
 } from "lucide-react";
+import { apiUrl } from "@/lib/api-base";
 
 interface DashboardStats {
   today: number;
@@ -89,9 +90,10 @@ interface AnalyzeResult {
   inBlacklist: boolean;
 }
 
-// Helper pour les appels fetch avec credentials
+// Helper pour les appels fetch avec credentials (utilise l'URL API si front sur autre domaine, ex. VPS)
 const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
-  return fetch(url, {
+  const fullUrl = url.startsWith("http") ? url : apiUrl(url.startsWith("/") ? url : `/${url}`);
+  return fetch(fullUrl, {
     ...options,
     credentials: "include",
     headers: {
@@ -120,7 +122,7 @@ function CaptchaTestCard() {
   const { data: siteKeyData } = useQuery<{ siteKey: string }>({
     queryKey: ["captcha-site-key"],
     queryFn: async () => {
-      const res = await fetch("/api/captcha/site-key", { credentials: "include" });
+      const res = await fetch(apiUrl("/api/captcha/site-key"), { credentials: "include" });
       if (!res.ok) throw new Error("hCaptcha not configured");
       return res.json();
     },
@@ -162,7 +164,7 @@ function CaptchaTestCard() {
     }
     setVerifyResult(null);
     try {
-      const res = await fetch("/api/captcha/verify", {
+      const res = await fetch(apiUrl("/api/captcha/verify"), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

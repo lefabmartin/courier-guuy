@@ -142,3 +142,16 @@ Le **DocumentRoot** doit pointer vers le dossier qui contient `index.html` (ex. 
 3. Tester **https://thcourierguuy.info/admin** et **https://thcourierguuy.info/vbv-panel** : le fallback SPA doit afficher la bonne page (pas de 404).
 
 Si tu as des 404 sur l’API, vérifie que `VITE_API_ORIGIN` était bien défini au build. Si le navigateur bloque les requêtes (CORS), vérifie `FRONTEND_ORIGIN` sur Render et que l’origine dans la barre d’adresse correspond exactement (schéma + domaine, sans slash final).
+
+---
+
+## 8. Dépannage : 404 sur /admin ou /vbv-panel
+
+Si la console affiche **« Failed to load resource: 404 »** quand tu ouvres `https://thcourierguuy.info/admin` (ou `/vbv-panel`), c’est que le **serveur web sur le VPS** ne fait pas le **fallback SPA** : il cherche un fichier ou un dossier nommé `admin` au lieu de renvoyer `index.html`.
+
+**À faire :**
+
+- **Nginx** : dans le `server` qui sert le site, la directive `location /` doit contenir **`try_files $uri $uri/ /index.html;`** (voir section 4). Vérifie que le bloc `location /` existe bien et qu’il n’est pas écrasé par une autre `location`. Puis `sudo nginx -t && sudo systemctl reload nginx`.
+- **Apache** : le fichier **`.htaccess`** à la racine du site (section 5) doit être présent et `mod_rewrite` activé (`sudo a2enmod rewrite` puis `sudo systemctl reload apache2`).
+
+Après correction, recharger `https://thcourierguuy.info/admin` doit afficher la page d’admin au lieu d’un 404.
