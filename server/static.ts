@@ -3,11 +3,17 @@ import fs from "fs";
 import path from "path";
 
 export function serveStatic(app: Express) {
-  const distPath = path.resolve(__dirname, "public");
+  // En production bundle (dist/index.cjs), __dirname = dist/ donc distPath = dist/public
+  let distPath = path.resolve(__dirname, "public");
   if (!fs.existsSync(distPath)) {
-    throw new Error(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`,
-    );
+    const fallback = path.resolve(process.cwd(), "dist", "public");
+    if (fs.existsSync(fallback)) {
+      distPath = fallback;
+    } else {
+      throw new Error(
+        `Could not find the build directory. Tried: ${distPath} and ${fallback}. Make sure to build the client first.`,
+      );
+    }
   }
 
   app.use(express.static(distPath));

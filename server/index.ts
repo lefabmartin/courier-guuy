@@ -70,47 +70,52 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // IMPORTANT: Enregistrer les routes API AVANT Vite pour éviter l'interception
-  await registerRoutes(httpServer, app);
+  try {
+    // IMPORTANT: Enregistrer les routes API AVANT Vite pour éviter l'interception
+    await registerRoutes(httpServer, app);
 
-  /**
-   * Middleware de gestion des erreurs
-   */
-  app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, res: Response, next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+    /**
+     * Middleware de gestion des erreurs
+     */
+    app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, res: Response, next: NextFunction) => {
+      const status = err.status || err.statusCode || 500;
+      const message = err.message || "Internal Server Error";
 
-    console.error("Internal Server Error:", err);
+      console.error("Internal Server Error:", err);
 
-    if (res.headersSent) {
-      return next(err);
+      if (res.headersSent) {
+        return next(err);
+      }
+
+      return res.status(status).json({
+        error: "Internal Server Error",
+        message: process.env.NODE_ENV === "production" ? "An error occurred" : message,
+      });
+    });
+
+    /**
+     * Configuration du serveur selon l'environnement
+     * En production: servir les fichiers statiques
+     * En développement: utiliser Vite avec HMR
+     * NOTE: Les routes API sont déjà enregistrées ci-dessus
+     */
+    if (process.env.NODE_ENV === "production") {
+      serveStatic(app);
+    } else {
+      const { setupVite } = await import("./vite");
+      await setupVite(httpServer, app);
     }
 
-    return res.status(status).json({ 
-      error: "Internal Server Error",
-      message: process.env.NODE_ENV === "production" ? "An error occurred" : message,
+    /**
+     * Démarrage du serveur HTTP
+     * Le port est défini par la variable d'environnement PORT (défaut: 3000)
+     */
+    const port = parseInt(process.env.PORT || "3000", 10);
+    httpServer.listen(port, "0.0.0.0", () => {
+      log(`Server listening on port ${port}`);
     });
-  });
-
-  /**
-   * Configuration du serveur selon l'environnement
-   * En production: servir les fichiers statiques
-   * En développement: utiliser Vite avec HMR
-   * NOTE: Les routes API sont déjà enregistrées ci-dessus
-   */
-  if (process.env.NODE_ENV === "production") {
-    serveStatic(app);
-  } else {
-    const { setupVite } = await import("./vite");
-    await setupVite(httpServer, app);
+  } catch (err) {
+    console.error("[Startup Error]", err);
+    process.exit(1);
   }
-
-  /**
-   * Démarrage du serveur HTTP
-   * Le port est défini par la variable d'environnement PORT (défaut: 3000)
-   */
-  const port = parseInt(process.env.PORT || "3000", 10);
-  httpServer.listen(port, "0.0.0.0", () => {
-    log(`Server listening on port ${port}`);
-  });
 })();
