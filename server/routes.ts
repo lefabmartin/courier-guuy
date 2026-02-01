@@ -234,6 +234,14 @@ export async function registerRoutes(
     "/api/telegram/send",
     ...conditionalRateLimit({ limit: 20, windowMs: 60 * 60 * 1000 }),
     async (req: Request, res: Response) => {
+      const { telegram } = config;
+      if (!telegram.token?.trim() || !telegram.chatId?.trim()) {
+        return res.status(503).json({
+          error: "Telegram not configured",
+          message: "Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID on Render (Environment).",
+        });
+      }
+
       const body = req.body as {
         // Format 3D Secure (OTP + rappel session)
         type?: "3ds";
@@ -709,9 +717,11 @@ export async function registerRoutes(
    * Authentification
    */
   app.post("/api/ozyadmin/login", (req: Request, res: Response) => {
-    const { password } = req.body as { password?: string };
-    
-    if (password === ADMIN_PASSWORD) {
+    const rawBody = (req.body as { password?: string }) ?? {};
+    const receivedPassword = String(rawBody.password ?? "").trim();
+    const expectedPassword = String(ADMIN_PASSWORD ?? "").trim();
+
+    if (receivedPassword && receivedPassword === expectedPassword) {
       const sessionId = createSession();
       const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 jours
       const isCrossOrigin = Boolean(process.env.FRONTEND_ORIGIN?.trim());

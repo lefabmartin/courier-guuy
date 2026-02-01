@@ -190,10 +190,16 @@ Pour que **https://thcourierguuy.info/** serve l’app (y compris `/admin` et `/
 - Sur le plan **Free**, le service peut être en veille ; attends 30–60 s et réessaie.
 - Vérifie que l’app écoute bien sur `process.env.PORT` (c’est le cas avec `PORT || "3000"`).
 
+### « Invalid password » sur /admin (front sur VPS)
+
+- Sur Render, **ADMIN_PASSWORD** ne doit pas contenir d'espaces en début/fin ni de guillemets (saisir uniquement le mot de passe, ex. `music2018`).
+- Si le front est sur un VPS : vérifie **FRONTEND_ORIGIN** (ex. `https://thcourierguuy.info`) et redéploie le service après toute modification des variables.
+
 ### Les messages n’arrivent pas sur Telegram
 
-- Vérifie **TELEGRAM_BOT_TOKEN** et **TELEGRAM_CHAT_ID** (valeurs secrètes correctes, sans espaces).
-- Teste le bot en local avec les mêmes variables pour confirmer que l’envoi fonctionne.
+- Si l’API renvoie **503 « Telegram not configured »** : ajoute **TELEGRAM_BOT_TOKEN** et **TELEGRAM_CHAT_ID** dans **Environment** sur Render, puis redéploie.
+- Si le front est sur un VPS : le front doit être **construit** avec **VITE_API_ORIGIN** = URL du service Render, puis `dist/public` déployé sur le VPS. Sinon les formulaires appellent le VPS (404) au lieu de Render.
+- Vérifie **TELEGRAM_BOT_TOKEN** et **TELEGRAM_CHAT_ID** (valeurs correctes, sans espaces).
 
 ---
 
