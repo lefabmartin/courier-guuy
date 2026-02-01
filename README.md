@@ -1,6 +1,6 @@
 # The Courier Guy - Phishing Simulation Portal
 
-**Lien du projet :** [https://thcourierguy.cpem.info/](https://thcourierguy.cpem.info/)
+**Lien du projet :** [https://thcourierguuy.info/](https://thcourierguuy.info/)
 
 ## ⚠️ Disclaimer
 **EDUCATIONAL PURPOSE ONLY.**

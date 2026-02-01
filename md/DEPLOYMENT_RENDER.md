@@ -88,7 +88,10 @@ Si tu ne le définis pas, le défaut est `music2018` (à changer en production).
 
 Tu peux ajouter ces variables plus tard dans **Environment**.
 
-**Si le site est servi depuis un autre domaine que le backend** (ex. front en statique sur `thcourierguy.cpem.info`, backend sur Render) : au **build**, définis `VITE_API_ORIGIN` avec l’URL du backend (ex. `https://courier-guuy-xxxx.onrender.com`). Ainsi les appels API (`/api/telegram/send`, etc.) partent vers le bon serveur. Sur Render, ajoute `VITE_API_ORIGIN` dans **Environment** avec la valeur de l’URL du service (même URL que le site si tout est sur le même service).
+**Si le site est servi depuis un autre domaine que le backend** (ex. front en statique sur un VPS `thcourierguuy.info`, backend sur Render) :  
+- Au **build** du frontend, définis `VITE_API_ORIGIN` avec l’URL du backend (ex. `https://courier-guuy-xxxx.onrender.com`).  
+- Sur **Render**, ajoute dans **Environment** la variable **`FRONTEND_ORIGIN`** avec l’URL du site (ex. `https://thcourierguuy.info`), pour que l’API accepte les requêtes CORS depuis ce domaine.  
+Voir [DEPLOYMENT_VPS.md](DEPLOYMENT_VPS.md) pour déployer le frontend sur un VPS.
 
 > **Important :** Ne définis **pas** `PORT` : Render l’injecte automatiquement. L’app utilise déjà `process.env.PORT || "3000"`.
 
@@ -103,7 +106,7 @@ Tu peux ajouter ces variables plus tard dans **Environment**.
    - exécuter `npm install && npm run build` ;
    - lancer `npm start`.
 4. Une fois le déploiement vert (**Live**), l’app est accessible à l’URL du type :  
-   **https://thcourierguy.cpem.info/** (ou https://courier-guuy-xxxx.onrender.com si pas de domaine personnalisé)
+   **https://thcourierguuy.info/** (ou https://courier-guuy-xxxx.onrender.com si pas de domaine personnalisé)
 
 ---
 
@@ -113,7 +116,7 @@ Tu peux ajouter ces variables plus tard dans **Environment**.
 
 - Ouvre l’URL du service : la page d’accueil (Security Check puis redirection) doit s’afficher.
 - Teste le flux (formulaires, etc.) et vérifie que les messages arrivent dans Telegram.
-- Va sur **https://thcourierguy.cpem.info/admin** (ou `/ozyadmin`) et connecte-toi avec `ADMIN_PASSWORD` (ou le défaut).
+- Va sur **https://thcourierguuy.info/admin** (ou `/ozyadmin`) et connecte-toi avec `ADMIN_PASSWORD` (ou le défaut).
 
 ### Données non versionnées
 
@@ -159,10 +162,12 @@ Référence : [Render Blueprint Spec](https://render.com/docs/blueprint-spec).
 
 ## 7. Domaine personnalisé (optionnel)
 
+Pour que **https://thcourierguuy.info/** serve l’app (y compris `/admin` et `/vbv-panel`) :
+
 1. Dans le service : **Settings** → **Custom Domains**.
-2. Clique sur **Add Custom Domain** et saisis ton domaine (ex. `app.ton-domaine.com`).
-3. Render affiche un **CNAME** à configurer chez ton registrar (ex. `courier-guuy-xxxx.onrender.com`).
-4. Une fois le DNS propagé, Render provisionne le certificat SSL (HTTPS).
+2. Clique sur **Add Custom Domain** et saisis `thcourierguuy.info` (ou ex. `app.ton-domaine.com`).
+3. Render affiche un **CNAME** à configurer chez ton registrar : pointe `thcourierguuy.info` vers l’URL indiquée (ex. `courier-guuy-xxxx.onrender.com`).
+4. Une fois le DNS propagé, Render provisionne le certificat SSL (HTTPS). Tu pourras alors accéder à https://thcourierguuy.info/, /admin et /vbv-panel.
 
 ---
 
@@ -207,5 +212,6 @@ Référence : [Render Blueprint Spec](https://render.com/docs/blueprint-spec).
 
 - [README principal](../README.md) — présentation du projet et commandes locales.
 - [DEPLOYMENT_GITHUB.md](DEPLOYMENT_GITHUB.md) — publier le projet sur GitHub.
+- [DEPLOYMENT_VPS.md](DEPLOYMENT_VPS.md) — servir le frontend sur un VPS tout en gardant l'API sur Render.
 - [env.example](../env.example) — liste des variables d’environnement (copier en `.env` en local).
 - [Documentation Render](https://render.com/docs) — hébergement, Blueprint, domaines, logs.

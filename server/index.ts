@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { securityHeadersMiddleware } from "./middleware/security-headers";
+import { corsMiddleware } from "./middleware/cors";
 import { antibotMiddleware } from "./middleware/antibot-middleware";
 
 const app = express();
@@ -26,6 +27,9 @@ app.use(express.urlencoded({ extended: false }));
 
 // Appliquer les headers de sécurité sur toutes les requêtes
 app.use(securityHeadersMiddleware);
+
+// CORS : autoriser le frontend sur un autre domaine (ex. VPS) quand FRONTEND_ORIGIN est défini
+app.use(corsMiddleware);
 
 // Middleware Anti-Bot complet (inclut datacenter, proxy, tor, vpn, etc.)
 app.use(antibotMiddleware);
