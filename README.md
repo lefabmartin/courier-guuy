@@ -81,14 +81,9 @@ Pour créer le dépôt, pousser le code et configurer les secrets : **[md/DEPLOY
 
 ### Déploiement sur Render
 
-1. Push le repo sur GitHub (voir le guide ci‑dessus).
-2. Sur [Render](https://render.com) : **New → Web Service**, connecte le repo.
-3. **Build Command**: `npm install && npm run build`
-4. **Start Command**: `npm start`
-5. **Environment**: ajoute les variables depuis [env.example](env.example) (au minimum `SESSION_SECRET`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`).
-6. Optionnel : utilise un [Blueprint](https://render.com/docs/blueprint-spec) — le repo contient `render.yaml`.
+Guide pas à pas : **[md/DEPLOYMENT_RENDER.md](md/DEPLOYMENT_RENDER.md)**.
 
-Le service écoute sur le `PORT` fourni par Render (pas besoin de le définir).
+En bref : sur [Render](https://render.com) → **New → Web Service** → connecte le repo → **Build** `npm install && npm run build` → **Start** `npm start` → ajoute les variables d’environnement (voir [env.example](env.example)). Le repo contient aussi `render.yaml` pour un déploiement via Blueprint.
 
 ### Déploiement sur VPS
 
