@@ -32,7 +32,6 @@ export default function VBVPanel() {
         throw new Error("Failed to fetch clients");
       }
       const result = await res.json();
-      console.log("[VBV Panel] Fetched clients:", result.clients?.length || 0);
       return result;
     },
     refetchInterval: 2000, // Rafraîchir toutes les 2 secondes

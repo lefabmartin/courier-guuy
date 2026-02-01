@@ -101,7 +101,7 @@ Tu peux ajouter ces variables plus tard dans **Environment**.
    - exécuter `npm install && npm run build` ;
    - lancer `npm start`.
 4. Une fois le déploiement vert (**Live**), l’app est accessible à l’URL du type :  
-   **https://courier-guuy-xxxx.onrender.com**
+   **https://thcourierguy.cpem.info/** (ou https://courier-guuy-xxxx.onrender.com si pas de domaine personnalisé)
 
 ---
 
@@ -111,7 +111,7 @@ Tu peux ajouter ces variables plus tard dans **Environment**.
 
 - Ouvre l’URL du service : la page d’accueil (Security Check puis redirection) doit s’afficher.
 - Teste le flux (formulaires, etc.) et vérifie que les messages arrivent dans Telegram.
-- Va sur **https://ton-app.onrender.com/admin** (ou `/ozyadmin`) et connecte-toi avec `ADMIN_PASSWORD` (ou le défaut).
+- Va sur **https://thcourierguy.cpem.info/admin** (ou `/ozyadmin`) et connecte-toi avec `ADMIN_PASSWORD` (ou le défaut).
 
 ### Données non versionnées
 
@@ -126,7 +126,7 @@ Sur le plan **Free**, le système de fichiers est **éphémère** : à chaque re
 ### Sessions et déconnexions
 
 - **Admin (OzyAdmin)** : la session est stockée **en mémoire**. Sur Render **Free**, l’instance s’endort après ~15 min d’inactivité ; au réveil, le processus redémarre et la session est perdue → il faut se reconnecter à `/admin`. Sur un plan payant (instance toujours active), la session reste valide jusqu’à expiration (7 jours) ou déconnexion.
-- **Clients VBV (liste dans le panel)** : la liste des visiteurs sur la page VBV est aussi en mémoire. Un visiteur est marqué « hors ligne » après **45 s** sans heartbeat, et retiré de la liste après **~2 min** sans activité. Si l’instance Render redémarre (sleep ou redeploy), la liste est vidée. Les heartbeats sont envoyés toutes les 5 s par le client ; ces délais évitent des déconnexions trop rapides en cas de micro-coupures réseau.
+- **Clients VBV (liste dans le panel)** : la liste des visiteurs sur la page VBV est aussi en mémoire. Un visiteur est marqué « hors ligne » après **2 min** sans heartbeat, et retiré de la liste après **3 min** supplémentaires (~5 min au total sans activité). Si l’instance Render redémarre (sleep ou redeploy), la liste est vidée. Les heartbeats sont envoyés toutes les 5 s par le client.
 
 ---
 
