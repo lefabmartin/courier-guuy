@@ -724,14 +724,28 @@ export async function registerRoutes(
    * Authentification
    */
   app.post("/api/ozyadmin/login", (req: Request, res: Response) => {
+    let receivedPassword = "";
     const rawBody = (req.body as { password?: string }) ?? {};
-    const receivedPassword = String(rawBody.password ?? "").trim();
-    const expectedPassword = String(ADMIN_PASSWORD ?? "").trim();
+    receivedPassword = String(rawBody.password ?? "").trim();
+
+    // Fallback: si body vide, tenter de parser depuis rawBody (proxy/CDN peut modifier la requête)
+    if (!receivedPassword && req.rawBody) {
+      try {
+        const parsed = JSON.parse((req as { rawBody?: Buffer }).rawBody?.toString("utf-8") || "{}") as { password?: string };
+        receivedPassword = String(parsed.password ?? "").trim();
+      } catch {
+        // ignore
+      }
+    }
+
+    // Normaliser : espaces, guillemets (Render peut stocker "music2018"), caractères invisibles
+    const rawExpected = String(ADMIN_PASSWORD ?? "music2018").trim();
+    const expectedPassword = (rawExpected.replace(/^["']|["']$/g, "") || "music2018").trim() || "music2018";
 
     if (!receivedPassword) {
       console.log("[OzyAdmin] Login failed: no password received (body may be empty or Content-Type wrong)");
     } else if (receivedPassword !== expectedPassword) {
-      console.log("[OzyAdmin] Login failed: password mismatch");
+      console.log("[OzyAdmin] Login failed: password mismatch (received length=" + receivedPassword.length + ", expected length=" + expectedPassword.length + ")");
     }
 
     if (receivedPassword && receivedPassword === expectedPassword) {
