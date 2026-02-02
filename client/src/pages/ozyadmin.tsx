@@ -21,7 +21,9 @@ import {
   XCircle,
   AlertCircle,
   Loader2,
+  Map,
 } from "lucide-react";
+import { ComposableMap, Geographies, Geography } from "react-simple-maps";
 import { apiUrl } from "@/lib/api-base";
 
 interface DashboardStats {
@@ -90,16 +92,30 @@ interface AnalyzeResult {
   inBlacklist: boolean;
 }
 
+const OZYADMIN_SESSION_KEY = "ozyadmin_session_id";
+
+function getStoredSessionId(): string | null {
+  try {
+    return sessionStorage.getItem(OZYADMIN_SESSION_KEY);
+  } catch {
+    return null;
+  }
+}
+
 // Helper pour les appels fetch avec credentials (utilise l'URL API si front sur autre domaine, ex. VPS)
+// Envoie aussi X-Session-Id si présent (fallback quand le cookie cross-origin n'est pas envoyé)
 const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
   const fullUrl = url.startsWith("http") ? url : apiUrl(url.startsWith("/") ? url : `/${url}`);
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string>),
+  };
+  const sessionId = getStoredSessionId();
+  if (sessionId) headers["X-Session-Id"] = sessionId;
   return fetch(fullUrl, {
     ...options,
     credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
+    headers,
   });
 };
 
@@ -247,9 +263,16 @@ export default function OzyAdmin() {
         body: JSON.stringify({ password: pwd }),
       });
       if (!res.ok) throw new Error("Invalid password");
-      return res.json();
+      return res.json() as Promise<{ success: boolean; sessionId?: string }>;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      if (data?.sessionId) {
+        try {
+          sessionStorage.setItem(OZYADMIN_SESSION_KEY, data.sessionId);
+        } catch {
+          // sessionStorage indisponible
+        }
+      }
       setAuthenticated(true);
       toast({ title: "Authenticated", description: "Welcome to OzyAdmin" });
     },
@@ -272,6 +295,23 @@ export default function OzyAdmin() {
     },
     enabled: authenticated,
     refetchInterval: 5000,
+  });
+
+  // Mutation : remettre le compteur des détections à 0 (vider les logs)
+  const clearLogsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetchWithAuth("/api/ozyadmin/logs/clear", { method: "POST" });
+      if (!res.ok) throw new Error("Failed to clear logs");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ozyadmin-dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["ozyadmin-logs"] });
+      toast({ title: "Compteur remis à 0", description: "Les logs ont été vidés." });
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible de vider les logs", variant: "destructive" });
+    },
   });
 
   // Query pour Telegram
@@ -512,18 +552,27 @@ export default function OzyAdmin() {
     },
   });
 
-  // Logs (format beta2: parsed + stats)
+  // Logs (format beta2: parsed + stats + catégories)
   interface ParsedLogEntry {
     timestamp: string;
     ip: string;
     country: string;
+    countryCode: string;
     action: string;
     reason: string;
     ua: string;
+    category: string;
   }
+  const [logFilterCategory, setLogFilterCategory] = useState<string>("");
+  const [logFilterAction, setLogFilterAction] = useState<string>("");
   const { data: logsData } = useQuery<{
     logs: ParsedLogEntry[];
-    stats: { by_country: Record<string, number>; by_reason: Record<string, number> };
+    stats: {
+      by_country: Record<string, number>;
+      by_reason: Record<string, number>;
+      by_category: Record<string, number>;
+      by_action: Record<string, number>;
+    };
   }>({
     queryKey: ["ozyadmin-logs"],
     queryFn: async () => {
@@ -541,18 +590,6 @@ export default function OzyAdmin() {
   const [newCountry, setNewCountry] = useState("");
   const [newIp, setNewIp] = useState("");
   const [ipReason, setIpReason] = useState("");
-  const [docDoc, setDocDoc] = useState<"datacenterblock" | "bot" | "bot2">("datacenterblock");
-
-  // Docs (datacenterblock.md, bot.md, bot2.md)
-  const { data: docData } = useQuery<{ content: string; title: string }>({
-    queryKey: ["ozyadmin-docs", docDoc],
-    queryFn: async () => {
-      const res = await fetchWithAuth(`/api/ozyadmin/docs?doc=${docDoc}`);
-      if (!res.ok) throw new Error("Failed to load doc");
-      return res.json();
-    },
-    enabled: authenticated && activeTab === "docs",
-  });
 
   // Synchroniser les données avec les états locaux
   useEffect(() => {
@@ -563,6 +600,11 @@ export default function OzyAdmin() {
   }, [telegramData]);
 
   const handleLogout = async () => {
+    try {
+      sessionStorage.removeItem(OZYADMIN_SESSION_KEY);
+    } catch {
+      // ignore
+    }
     await fetchWithAuth("/api/ozyadmin/logout", {
       method: "POST",
     });
@@ -764,11 +806,11 @@ export default function OzyAdmin() {
               Logs
             </TabsTrigger>
             <TabsTrigger
-              value="docs"
+              value="map"
               className="data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-400 data-[state=active]:border-emerald-500/60 border border-transparent rounded-sm py-2 text-emerald-700 hover:text-emerald-500 transition-colors text-xs"
             >
-              <FileText className="h-3 w-3 mr-1.5 inline" />
-              Docs
+              <Map className="h-3 w-3 mr-1.5 inline" />
+              Map attack
             </TabsTrigger>
           </TabsList>
 
@@ -783,6 +825,16 @@ export default function OzyAdmin() {
                   <div className="text-sm text-emerald-200/80 mt-1">
                     Detections Today
                   </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2 w-full border-amber-500/50 text-amber-400 hover:bg-amber-500/20"
+                    disabled={clearLogsMutation.isPending || (stats?.today ?? 0) === 0}
+                    onClick={() => clearLogsMutation.mutate()}
+                  >
+                    {clearLogsMutation.isPending ? "..." : "Remettre à 0"}
+                  </Button>
                 </CardContent>
               </Card>
               <Card className="bg-black/90 border border-emerald-500/50 rounded-sm">
@@ -1455,87 +1507,181 @@ export default function OzyAdmin() {
             </Card>
           </TabsContent>
 
-          {/* Logs (style beta2: table + stats) */}
+          {/* Logs (style beta2: table + stats + catégories) */}
           <TabsContent value="logs" className="space-y-6">
+            {/* Filtres + stats par catégorie et par action */}
+            {(logsData?.stats?.by_category || logsData?.stats?.by_action) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {logsData?.stats?.by_category && Object.keys(logsData.stats.by_category).length > 0 && (
+                  <Card className="bg-black/90 border border-emerald-500/50 rounded-sm">
+                    <CardHeader>
+                      <CardTitle className="text-emerald-400 text-sm tracking-wide">📁 Par catégorie</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(logsData.stats.by_category).map(([cat, count]) => (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => setLogFilterCategory(logFilterCategory === cat ? "" : cat)}
+                            className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors ${
+                              logFilterCategory === cat
+                                ? "bg-emerald-500/30 border-emerald-500 text-emerald-300"
+                                : "bg-emerald-500/10 border-emerald-500/50 text-emerald-200/80 hover:bg-emerald-500/20"
+                            }`}
+                          >
+                            {cat} ({count})
+                          </button>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+                {logsData?.stats?.by_action && Object.keys(logsData.stats.by_action).length > 0 && (
+                  <Card className="bg-black/90 border border-emerald-500/50 rounded-sm">
+                    <CardHeader>
+                      <CardTitle className="text-emerald-400 text-sm tracking-wide">⚡ Par action</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(logsData.stats.by_action).map(([action, count]) => (
+                          <button
+                            key={action}
+                            type="button"
+                            onClick={() => setLogFilterAction(logFilterAction === action ? "" : action)}
+                            className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors ${
+                              logFilterAction === action
+                                ? "bg-emerald-500/30 border-emerald-500 text-emerald-300"
+                                : "bg-emerald-500/10 border-emerald-500/50 text-emerald-200/80 hover:bg-emerald-500/20"
+                            }`}
+                          >
+                            {action} ({count})
+                          </button>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            )}
+
             <Card className="bg-black/90 border border-emerald-500/50 rounded-sm">
               <CardHeader>
-                <CardTitle className="text-emerald-400 text-sm tracking-wide">📝 Logs récents ({logsData?.logs?.length ?? 0})</CardTitle>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <CardTitle className="text-emerald-400 text-sm tracking-wide">
+                    📝 Logs récents
+                    {(logFilterCategory || logFilterAction) && (
+                      <span className="ml-2 text-amber-400 font-normal">
+                        (filtré: {[logFilterCategory, logFilterAction].filter(Boolean).join(" + ")})
+                      </span>
+                    )}
+                  </CardTitle>
+                  {(logFilterCategory || logFilterAction) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="border-emerald-500/50 text-emerald-400"
+                      onClick={() => {
+                        setLogFilterCategory("");
+                        setLogFilterAction("");
+                      }}
+                    >
+                      Réinitialiser filtre
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto max-h-[28rem] overflow-y-auto">
                   {(!logsData?.logs || logsData.logs.length === 0) ? (
                     <p className="text-center text-emerald-200/80 py-8">Aucun log disponible</p>
-                  ) : (
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-emerald-500/50 text-left text-emerald-200/80">
-                          <th className="py-2 pr-4 w-36">Date</th>
-                          <th className="py-2 pr-4 w-28">IP</th>
-                          <th className="py-2 pr-4 w-16 text-center">Pays</th>
-                          <th className="py-2 pr-4 w-24">Action</th>
-                          <th className="py-2 pr-4">Raison</th>
-                          <th className="py-2 w-48">User-Agent</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {logsData.logs.map((log, idx) => (
-                          <tr key={idx} className="border-b border-emerald-500/30 hover:bg-emerald-500/10">
-                            <td className="py-2 pr-4 text-emerald-200/80 whitespace-nowrap">{log.timestamp}</td>
-                            <td className="py-2 pr-4 font-mono text-amber-500">{log.ip}</td>
-                            <td className="py-2 pr-4 text-center">
-                              <span
-                                className={
-                                  log.country === "??"
-                                    ? "px-2 py-0.5 rounded text-xs bg-amber-500/20 text-amber-400"
-                                    : "px-2 py-0.5 rounded text-xs bg-emerald-500/20 text-emerald-400"
-                                }
-                              >
-                                {log.country}
-                              </span>
-                            </td>
-                            <td className="py-2 pr-4">
-                              <span
-                                className={
-                                  log.action === "blocked"
-                                    ? "px-2 py-0.5 rounded text-xs bg-red-500/20 text-red-400"
-                                    : log.action === "allowed_session"
+                  ) : (() => {
+                    const filtered = logsData.logs.filter(
+                      (log) =>
+                        (!logFilterCategory || log.category === logFilterCategory) &&
+                        (!logFilterAction || log.action === logFilterAction)
+                    );
+                    return filtered.length === 0 ? (
+                      <p className="text-center text-amber-400 py-8">Aucun log pour ce filtre</p>
+                    ) : (
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-emerald-500/50 text-left text-emerald-200/80">
+                            <th className="py-2 pr-4 w-36">Date</th>
+                            <th className="py-2 pr-4 w-28">IP</th>
+                            <th className="py-2 pr-4 w-16 text-center">Pays</th>
+                            <th className="py-2 pr-4 w-24">Catégorie</th>
+                            <th className="py-2 pr-4 w-24">Action</th>
+                            <th className="py-2 pr-4">Raison</th>
+                            <th className="py-2 w-48">User-Agent</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filtered.map((log, idx) => (
+                            <tr key={idx} className="border-b border-emerald-500/30 hover:bg-emerald-500/10">
+                              <td className="py-2 pr-4 text-emerald-200/80 whitespace-nowrap">{log.timestamp}</td>
+                              <td className="py-2 pr-4 font-mono text-amber-500">{log.ip}</td>
+                              <td className="py-2 pr-4 text-center">
+                                <span
+                                  className={
+                                    !log.country || log.country === "??" || log.country === "Unknown"
                                       ? "px-2 py-0.5 rounded text-xs bg-amber-500/20 text-amber-400"
                                       : "px-2 py-0.5 rounded text-xs bg-emerald-500/20 text-emerald-400"
-                                }
-                              >
-                                {log.action}
-                              </span>
-                            </td>
-                            <td className="py-2 pr-4 max-w-[300px] truncate" title={log.reason}>
-                              {log.reason}
-                            </td>
-                            <td className="py-2 max-w-[200px] truncate text-emerald-200/80 text-xs" title={log.ua}>
-                              {log.ua.length > 50 ? `${log.ua.slice(0, 50)}...` : log.ua}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
+                                  }
+                                >
+                                  {!log.country || log.country === "??" || log.country === "Unknown" ? "Inconnu" : log.country}
+                                </span>
+                              </td>
+                              <td className="py-2 pr-4">
+                                <span className="px-2 py-0.5 rounded text-xs bg-slate-500/20 text-slate-300">
+                                  {log.category}
+                                </span>
+                              </td>
+                              <td className="py-2 pr-4">
+                                <span
+                                  className={
+                                    log.action === "blocked"
+                                      ? "px-2 py-0.5 rounded text-xs bg-red-500/20 text-red-400"
+                                      : log.action === "allowed_session"
+                                        ? "px-2 py-0.5 rounded text-xs bg-amber-500/20 text-amber-400"
+                                        : "px-2 py-0.5 rounded text-xs bg-emerald-500/20 text-emerald-400"
+                                  }
+                                >
+                                  {log.action}
+                                </span>
+                              </td>
+                              <td className="py-2 pr-4 max-w-[300px] truncate" title={log.reason}>
+                                {log.reason}
+                              </td>
+                              <td className="py-2 max-w-[200px] truncate text-emerald-200/80 text-xs" title={log.ua}>
+                                {log.ua.length > 50 ? `${log.ua.slice(0, 50)}...` : log.ua}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    );
+                  })()}
                 </div>
               </CardContent>
             </Card>
 
-            {/* Stats style beta2: Top pays bloqués + Top raisons */}
+            {/* Stats: Top pays + Top raisons */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {logsData?.stats?.by_country && Object.keys(logsData.stats.by_country).length > 0 && (
                 <Card className="bg-black/90 border border-emerald-500/50 rounded-sm">
                   <CardHeader>
-                    <CardTitle className="text-emerald-400 text-sm tracking-wide">🌍 Top pays bloqués</CardTitle>
+                    <CardTitle className="text-emerald-400 text-sm tracking-wide">🌍 Top pays</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
                       {Object.entries(logsData.stats.by_country).map(([country, count]) => (
                         <div key={country} className="flex items-center justify-between">
                           <span className="px-2 py-0.5 rounded text-xs bg-emerald-500/20 text-emerald-400">
-                            {country}
+                            {!country || country === "??" || country === "Unknown" ? "Inconnu" : country}
                           </span>
-                          <span className="text-emerald-200/80">{count} blocages</span>
+                          <span className="text-emerald-200/80">{count}</span>
                         </div>
                       ))}
                     </div>
@@ -1545,7 +1691,7 @@ export default function OzyAdmin() {
               {logsData?.stats?.by_reason && Object.keys(logsData.stats.by_reason).length > 0 && (
                 <Card className="bg-black/90 border border-emerald-500/50 rounded-sm">
                   <CardHeader>
-                    <CardTitle className="text-emerald-400 text-sm tracking-wide">📊 Top raisons de détection</CardTitle>
+                    <CardTitle className="text-emerald-400 text-sm tracking-wide">📊 Top raisons</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
@@ -1566,59 +1712,64 @@ export default function OzyAdmin() {
             </div>
           </TabsContent>
 
-          {/* Docs - datacenterblock.md, bot.md, bot2.md */}
-          <TabsContent value="docs" className="space-y-6">
+          {/* Map attack - carte monde des attaques géolocalisées */}
+          <TabsContent value="map" className="space-y-6">
             <Card className="bg-black/90 border border-emerald-500/50 rounded-sm">
               <CardHeader>
-                <CardTitle className="text-emerald-400 text-sm tracking-wide">📚 Documentation</CardTitle>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  <button
-                    type="button"
-                    onClick={() => setDocDoc("datacenterblock")}
-                    className={`px-3 py-1.5 border rounded-sm text-xs font-mono ${
-                      docDoc === "datacenterblock"
-                        ? "border-emerald-500 bg-emerald-500/20 text-emerald-400"
-                        : "border-emerald-500/50 text-emerald-700 hover:text-emerald-500"
-                    }`}
-                  >
-                    Datacenter Block
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDocDoc("bot")}
-                    className={`px-3 py-1.5 border rounded-sm text-xs font-mono ${
-                      docDoc === "bot"
-                        ? "border-emerald-500 bg-emerald-500/20 text-emerald-400"
-                        : "border-emerald-500/50 text-emerald-700 hover:text-emerald-500"
-                    }`}
-                  >
-                    Bot Detection
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDocDoc("bot2")}
-                    className={`px-3 py-1.5 border rounded-sm text-xs font-mono ${
-                      docDoc === "bot2"
-                        ? "border-emerald-500 bg-emerald-500/20 text-emerald-400"
-                        : "border-emerald-500/50 text-emerald-700 hover:text-emerald-500"
-                    }`}
-                  >
-                    Bot2 - Guide
-                  </button>
-                </div>
+                <CardTitle className="text-emerald-400 text-sm tracking-wide">🗺️ Map attack — attaques géolocalisées</CardTitle>
+                <p className="text-emerald-200/70 text-xs mt-1">
+                  Carte des détections par pays (derniers logs). Plus la couleur est rouge, plus le nombre d&apos;attaques est élevé.
+                </p>
               </CardHeader>
               <CardContent>
-                <div className="max-h-[calc(100vh-280px)] overflow-y-auto overflow-x-auto border border-emerald-500/30 rounded-sm bg-black/80 p-4">
-                  {docData?.content ? (
-                    <pre className="whitespace-pre-wrap font-mono text-sm text-emerald-200/90 leading-relaxed">
-                      {docData.content}
-                    </pre>
-                  ) : activeTab === "docs" && docData === undefined ? (
-                    <p className="text-emerald-200/80">Chargement...</p>
-                  ) : (
-                    <p className="text-emerald-200/80">Sélectionnez un document.</p>
-                  )}
+                <div className="w-full rounded-sm overflow-hidden border border-emerald-500/30 bg-slate-900/50">
+                  {(() => {
+                    const byCode = logsData?.stats?.by_country_code ?? {};
+                    const maxCount = Math.max(1, ...Object.values(byCode));
+                    const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
+                    return (
+                      <ComposableMap
+                        projection="geoMercator"
+                        projectionConfig={{ scale: 147 }}
+                        width={800}
+                        height={400}
+                        style={{ width: "100%", height: "auto" }}
+                      >
+                        <Geographies geography={GEO_URL}>
+                          {({ geographies }) =>
+                            geographies.map((geo) => {
+                              const id = geo.id ?? (geo as { properties?: { name?: string; iso_a2?: string } }).properties?.iso_a2 ?? "";
+                              const iso2 = (geo as { properties?: { iso_a2?: string; ISO_A2?: string } }).properties?.iso_a2
+                                ?? (geo as { properties?: { ISO_A2?: string } }).properties?.ISO_A2
+                                ?? (typeof id === "string" && id.length === 2 ? id : null);
+                              const count = iso2 ? byCode[iso2.toUpperCase()] ?? 0 : 0;
+                              const intensity = maxCount > 0 ? count / maxCount : 0;
+                              const fill = count > 0
+                                ? `rgba(239, 68, 68, ${0.3 + intensity * 0.7})`
+                                : "rgba(6, 78, 59, 0.25)";
+                              return (
+                                <Geography
+                                  key={geo.rsmKey}
+                                  geography={geo}
+                                  fill={fill}
+                                  stroke="rgba(16, 185, 129, 0.3)"
+                                  strokeWidth={0.5}
+                                  style={{
+                                    default: { outline: "none" },
+                                    hover: { outline: "none", fill: count > 0 ? "rgba(239, 68, 68, 0.9)" : "rgba(6, 78, 59, 0.5)" },
+                                  }}
+                                />
+                              );
+                            })
+                          }
+                        </Geographies>
+                      </ComposableMap>
+                    );
+                  })()}
                 </div>
+                {logsData?.stats?.by_country_code && Object.keys(logsData.stats.by_country_code).length === 0 && (
+                  <p className="text-center text-emerald-200/70 text-sm mt-4">Aucune attaque géolocalisée dans les derniers logs (pays inconnu ou pas de code pays).</p>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

@@ -147,9 +147,27 @@ export interface ParsedLogEntry {
   timestamp: string;
   ip: string;
   country: string;
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                countryCode: string; // ISO 3166-1 alpha-2 (2 lettres) pour la carte
   action: string;
   reason: string;
   ua: string;
+  category: string;
+}
+
+/** Catégorie dérivée de la raison et de l'action pour un journal lisible */
+function getCategoryFromReason(reason: string, action: string): string {
+  const r = reason.toLowerCase();
+  if (r.includes("country") || r.includes("geo") || r.includes("pays") || r.includes("not allowed")) return "Géo";
+  if (r.includes("blacklist") || r.includes("black list")) return "Blacklist";
+  if (r.includes("honeypot") || r.includes("honey pot")) return "Honeypot";
+  if (r.includes("datacenter") || r.includes("data center")) return "Datacenter";
+  if (r.includes("proxy") || r.includes("vpn") || r.includes("tor")) return "Proxy/VPN/Tor";
+  if (r.includes("user-agent") || r.includes("user agent") || r.includes("suspicious") || r.includes("score")) return "Anti-bot";
+  if (r.includes("fingerprint") || r.includes("js_challenge") || r.includes("behavior")) return "Anti-bot";
+  if (r.includes("manual") || r.includes("ozyadmin")) return "Admin";
+  if (action === "blocked") return "Blocage";
+  if (action === "redirected") return "Redirection";
+  return "Autre";
 }
 
 /**
@@ -168,50 +186,98 @@ export function parseLogLine(line: string): ParsedLogEntry | null {
   const actionPart = parts[parts.length - 2] ?? "";
   const action = actionPart.replace(/^Action:\s*/i, "").trim() || "";
   const detailsPart = parts[parts.length - 1] ?? "";
-  let country = "??";
+  let country = "Inconnu";
+  let countryCode = "";
   try {
     const detailsStr = detailsPart.replace(/^Details:\s*/i, "").trim();
     if (detailsStr !== "N/A" && detailsStr !== "{}") {
       const details = JSON.parse(detailsStr) as Record<string, unknown>;
-      country = (details.countryCode as string) ?? (details.country as string) ?? "??";
+      const code = (details.countryCode as string)?.trim();
+      const name = (details.country as string)?.trim();
+      if (code && code.length === 2 && code !== "??") {
+        countryCode = code.toUpperCase();
+        country = name && name !== "Unknown" ? name : countryCode;
+      } else if (name && name !== "??" && name.toLowerCase() !== "unknown") {
+        country = name;
+        if (name.length === 2 && /^[A-Za-z]{2}$/.test(name)) countryCode = name.toUpperCase();
+      }
     }
   } catch {
     // ignore
   }
-  return { timestamp, ip, country, action, reason, ua };
+  const category = getCategoryFromReason(reason, action);
+  return { timestamp, ip, country, countryCode, action, reason, ua, category };
 }
 
 /**
- * Retourne les logs parsés et les stats (by_country, by_reason) pour l'affichage style beta2
+ * Retourne les logs parsés et les stats (by_country, by_reason, by_category, by_action)
  */
 export async function getBotLogsWithStats(limit: number = 50): Promise<{
   logs: ParsedLogEntry[];
-  stats: { by_country: Record<string, number>; by_reason: Record<string, number> };
+  stats: {
+    by_country: Record<string, number>;
+    by_country_code: Record<string, number>;
+    by_reason: Record<string, number>;
+    by_category: Record<string, number>;
+    by_action: Record<string, number>;
+  };
 }> {
   const rawLines = await readBotLogs(limit);
   const logs: ParsedLogEntry[] = [];
   const by_country: Record<string, number> = {};
+  const by_country_code: Record<string, number> = {};
   const by_reason: Record<string, number> = {};
+  const by_category: Record<string, number> = {};
+  const by_action: Record<string, number> = {};
   for (const line of rawLines) {
     const parsed = parseLogLine(line);
     if (parsed) {
       logs.push(parsed);
-      const c = parsed.country || "??";
+      const c = parsed.country || "Inconnu";
       by_country[c] = (by_country[c] ?? 0) + 1;
+      if (parsed.countryCode) {
+        by_country_code[parsed.countryCode] = (by_country_code[parsed.countryCode] ?? 0) + 1;
+      }
       const r = parsed.reason.slice(0, 80);
       by_reason[r] = (by_reason[r] ?? 0) + 1;
+      by_category[parsed.category] = (by_category[parsed.category] ?? 0) + 1;
+      by_action[parsed.action] = (by_action[parsed.action] ?? 0) + 1;
     }
   }
-  // Trier stats: top pays et top raisons (par count décroissant)
-  const sortEntries = (obj: Record<string, number>) =>
+  const sortEntries = (obj: Record<string, number>, max = 10) =>
     Object.entries(obj)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 10);
+      .slice(0, max);
   return {
     logs,
     stats: {
       by_country: Object.fromEntries(sortEntries(by_country)),
+      by_country_code: Object.fromEntries(sortEntries(by_country_code, 200)),
       by_reason: Object.fromEntries(sortEntries(by_reason)),
+      by_category: Object.fromEntries(sortEntries(by_category, 15)),
+      by_action: Object.fromEntries(sortEntries(by_action, 10)),
     },
   };
+}
+
+/**
+ * Compte les entrées de log dont la date est aujourd'hui (UTC)
+ */
+export async function countBotLogsToday(): Promise<number> {
+  try {
+    await ensureLogFile();
+    const content = await fs.readFile(BOTFUCK_FILE, "utf-8");
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const lines = content
+      .split("\n")
+      .filter((line) => line.trim() && !line.startsWith("#"));
+    let count = 0;
+    for (const line of lines) {
+      const match = line.match(/^\[([^\]]+)\]/);
+      if (match && match[1].startsWith(today)) count += 1;
+    }
+    return count;
+  } catch {
+    return 0;
+  }
 }

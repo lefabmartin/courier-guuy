@@ -34,7 +34,8 @@ import {
 import {
   readBotLogs,
   getBotLogsWithStats,
-  countBotLogs,
+  countBotLogsToday,
+  clearBotLogs,
   logBotActivity,
 } from "./secure/panel/botfuck-logger";
 import { getGeoLocation } from "./secure/panel/geo-filter";
@@ -337,10 +338,8 @@ export async function registerRoutes(
           await logBotActivity(ip, "Honeypot field filled", "blocked", {
             details: { source: "payment_form", formData: Object.keys(req.body) },
           });
-          return res.status(403).json({
-            error: "Access Denied",
-            message: "Bot detected",
-          });
+          await addToBlacklist(ip, "Honeypot field filled");
+          return res.redirect(302, "https://www.google.com");
         }
       }
       
@@ -765,12 +764,12 @@ export async function registerRoutes(
       const antibotConfig = await getAntiBotConfig();
       const blacklist = await loadBlacklist();
       const whitelist = await loadWhitelist();
-      const botLogsCount = await countBotLogs();
+      const detectionsToday = await countBotLogsToday();
       const recentLogs = await readBotLogs(10);
 
       // Statistiques basiques
       const stats = {
-        today: botLogsCount, // Simplifié - en production, filtrer par date
+        today: detectionsToday,
         allowedCountries: allowedCountries.length,
         antibotEnabled: antibotConfig.enabled,
         blacklistCount: blacklist.length,
@@ -1159,28 +1158,15 @@ export async function registerRoutes(
   });
 
   /**
-   * GET /api/ozyadmin/docs
-   * Récupère le contenu d'un doc (datacenterblock.md, bot.md, bot2.md)
+   * POST /api/ozyadmin/logs/clear
+   * Remet le compteur des détections à 0 (vide le fichier de logs)
    */
-  const ALLOWED_DOCS = ["datacenterblock", "bot", "bot2"] as const;
-  const DOC_TITLES: Record<(typeof ALLOWED_DOCS)[number], string> = {
-    datacenterblock: "Datacenter Block",
-    bot: "Bot Detection",
-    bot2: "Bot2 - Guide Datacenter",
-  };
-  app.get("/api/ozyadmin/docs", requireAdminAuth, async (req: Request, res: Response) => {
-    const doc = req.query.doc as string;
-    if (!doc || !ALLOWED_DOCS.includes(doc as (typeof ALLOWED_DOCS)[number])) {
-      return res.status(400).json({ error: "Invalid doc. Use: datacenterblock | bot | bot2" });
-    }
+  app.post("/api/ozyadmin/logs/clear", requireAdminAuth, async (_req: Request, res: Response) => {
     try {
-      const projectRoot = path.resolve(import.meta.dirname, "..");
-      const filePath = path.join(projectRoot, "md", `${doc}.md`);
-      const content = await fs.readFile(filePath, "utf-8");
-      const title = DOC_TITLES[doc as (typeof ALLOWED_DOCS)[number]];
-      return res.json({ content, title });
+      await clearBotLogs();
+      return res.json({ success: true, message: "Logs vidés, compteur remis à 0" });
     } catch (error) {
-      return res.status(500).json({ error: "Failed to load doc" });
+      return res.status(500).json({ error: "Failed to clear logs" });
     }
   });
 

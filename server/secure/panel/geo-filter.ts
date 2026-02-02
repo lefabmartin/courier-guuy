@@ -11,65 +11,117 @@ interface GeoLocation {
   region?: string;
 }
 
+const GEO_FETCH_OPTIONS: RequestInit = {
+  headers: { "User-Agent": "Mozilla/5.0 (compatible; CourierGuuy/1.0)" },
+  signal: AbortSignal.timeout(8000),
+};
+
+/** Extrait countryCode (2 lettres) et country (nom) depuis un objet JSON */
+function parseCountryFromAny(data: Record<string, unknown>): { countryCode: string; country: string } | null {
+  const code =
+    (data.countryCode as string) ??
+    (data.country_code as string) ??
+    (data.country as string) ??
+    (data.countryCodeISO as string);
+  const name =
+    (data.country as string) ??
+    (data.country_name as string) ??
+    (data.countryName as string) ??
+    (data.name as string);
+  if (code && typeof code === "string" && code.length >= 2) {
+    const twoLetter = code.length === 2 ? code : code.slice(0, 2).toUpperCase();
+    if (/^[A-Z]{2}$/i.test(twoLetter))
+      return { countryCode: twoLetter.toUpperCase(), country: (name && String(name)) || twoLetter };
+  }
+  return null;
+}
+
+type GeoService = { url: string; parse: (data: Record<string, unknown>) => GeoLocation | null };
+
+function buildGeoServices(ip: string): GeoService[] {
+  return [
+    {
+      url: `https://ip-api.com/json/${ip}?fields=status,country,countryCode,city,regionName`,
+      parse: (data) => {
+        if (data.status === "fail") return null;
+        const c = parseCountryFromAny(data);
+        if (!c) return null;
+        return {
+          country: c.country,
+          countryCode: c.countryCode,
+          city: data.city as string | undefined,
+          region: data.regionName as string | undefined,
+        };
+      },
+    },
+    {
+      url: `https://ipapi.co/${ip}/json/`,
+      parse: (data) => {
+        const c = parseCountryFromAny({ country_code: data.country_code, country_name: data.country_name });
+        if (!c) return null;
+        return {
+          country: c.country,
+          countryCode: c.countryCode,
+          city: data.city as string | undefined,
+          region: data.region as string | undefined,
+        };
+      },
+    },
+    {
+      url: `https://ipwho.is/${ip}`,
+      parse: (data) => {
+        const c = parseCountryFromAny({ country_code: data.country_code, country: data.country });
+        if (!c) return null;
+        return {
+          country: c.country,
+          countryCode: c.countryCode,
+          city: data.city as string | undefined,
+          region: data.region as string | undefined,
+        };
+      },
+    },
+    {
+      url: `https://get.geojs.io/v1/ip/country/${ip}.json`,
+      parse: (data) => {
+        const c = parseCountryFromAny({ country: data.country, name: data.name });
+        if (!c) return null;
+        return { country: c.country, countryCode: c.countryCode, city: undefined, region: undefined };
+      },
+    },
+    {
+      url: `https://reallyfreegeoip.org/json/${ip}`,
+      parse: (data) => {
+        const c = parseCountryFromAny(data);
+        if (!c) return null;
+        return {
+          country: c.country,
+          countryCode: c.countryCode,
+          city: data.city as string | undefined,
+          region: data.region as string | undefined,
+        };
+      },
+    },
+  ];
+}
+
 /**
- * Récupère la géolocalisation d'une IP via plusieurs services
+ * Récupère la géolocalisation d'une IP via 5 services (fallback en chaîne).
+ * Maximise les chances de détecter le pays pour éviter "inconnu".
  */
 export async function getGeoLocation(ip: string): Promise<GeoLocation | null> {
-  // Liste des services de géolocalisation (fallback). ip-api.com : HTTP puis HTTPS en cas d'échec.
-  const services = [
-    `https://ipapi.co/${ip}/json/`,
-    `http://ip-api.com/json/${ip}`,
-    `https://ip-api.com/json/${ip}`,
-    `https://freegeoip.app/json/${ip}`,
-  ];
-
-  for (const serviceUrl of services) {
+  const services = buildGeoServices(ip);
+  for (const { url, parse } of services) {
     try {
-      const response = await fetch(serviceUrl, {
-        headers: {
-          "User-Agent": "Mozilla/5.0",
-        },
-      });
-
+      const response = await fetch(url, GEO_FETCH_OPTIONS);
       if (response.ok) {
-        const data = await response.json();
-
-        // Format ipapi.co
-        if (data.country_code) {
-          return {
-            country: data.country_name || "",
-            countryCode: data.country_code,
-            city: data.city,
-            region: data.region,
-          };
-        }
-
-        // Format ip-api.com
-        if (data.countryCode) {
-          return {
-            country: data.country || "",
-            countryCode: data.countryCode,
-            city: data.city,
-            region: data.regionName,
-          };
-        }
-
-        // Format freegeoip
-        if (data.country_code) {
-          return {
-            country: data.country_name || "",
-            countryCode: data.country_code,
-            city: data.city,
-            region: data.region_name,
-          };
-        }
+        const data = (await response.json()) as Record<string, unknown>;
+        const geo = parse(data);
+        if (geo) return geo;
       }
     } catch (error) {
-      // Continue avec le service suivant
-      console.error(`Geo service failed: ${serviceUrl}`, error);
+      console.error(`[Geo] Failed: ${url}`, error instanceof Error ? error.message : error);
     }
   }
-
   return null;
 }
 
