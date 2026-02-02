@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { ComposableMap, Geographies, Geography } from "react-simple-maps";
 import { apiUrl } from "@/lib/api-base";
+import { numericIdToAlpha2 } from "@/lib/iso-numeric-to-alpha2";
 
 interface DashboardStats {
   today: number;
@@ -1779,11 +1780,9 @@ export default function OzyAdmin() {
                         <Geographies geography={GEO_URL}>
                           {({ geographies }: { geographies: unknown[] }) =>
                             geographies.map((geoUnknown) => {
-                              const geo = geoUnknown as { rsmKey: string; id?: string; properties?: { iso_a2?: string; ISO_A2?: string } };
-                              const id = geo.id ?? (geo as { properties?: { name?: string; iso_a2?: string } }).properties?.iso_a2 ?? "";
-                              const iso2 = (geo as { properties?: { iso_a2?: string; ISO_A2?: string } }).properties?.iso_a2
-                                ?? (geo as { properties?: { ISO_A2?: string } }).properties?.ISO_A2
-                                ?? (typeof id === "string" && id.length === 2 ? id : null);
+                              const geo = geoUnknown as { rsmKey: string; id?: string };
+                              // world-atlas uses ISO 3166-1 numeric id (e.g. "840" for USA), logs use alpha-2 (US)
+                              const iso2 = numericIdToAlpha2(geo.id);
                               const count = iso2 ? byCode[iso2.toUpperCase()] ?? 0 : 0;
                               const intensity = maxCount > 0 ? count / maxCount : 0;
                               const fill = count > 0
