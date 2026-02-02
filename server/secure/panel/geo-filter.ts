@@ -2,10 +2,19 @@
 
 import type { Request } from "express";
 import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const geoip = require("geoip-lite") as { lookup: (ip: string) => { country: string; city?: string; region?: string } | null };
 import { getRealIp } from "./ip-manager";
 import { config } from "../config/config";
+
+type GeoipLookup = { lookup: (ip: string) => { country: string; city?: string; region?: string } | null };
+let _geoip: GeoipLookup | null = null;
+function getGeoip(): GeoipLookup {
+  if (_geoip) return _geoip;
+  // CJS (bundled dist/index.cjs): import.meta.url is undefined → use process.argv[1] (script path)
+  const ref = typeof import.meta !== "undefined" && typeof import.meta.url === "string" ? import.meta.url : process.argv[1];
+  const mod = createRequire(ref)("geoip-lite") as GeoipLookup;
+  _geoip = mod;
+  return mod;
+}
 
 interface GeoLocation {
   country: string;
@@ -127,7 +136,7 @@ export async function getGeoLocation(ip: string): Promise<GeoLocation | null> {
   }
   // Fallback local : geoip-lite fournit au moins le code pays (2 lettres)
   try {
-    const lookup = geoip.lookup(ip);
+    const lookup = getGeoip().lookup(ip);
     if (lookup?.country && /^[A-Z]{2}$/i.test(lookup.country)) {
       const code = lookup.country.toUpperCase();
       return { country: code, countryCode: code, city: lookup.city, region: lookup.region };
