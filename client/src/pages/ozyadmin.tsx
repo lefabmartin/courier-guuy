@@ -742,6 +742,11 @@ export default function OzyAdmin() {
               <p className="text-emerald-900/70 text-xs text-center">
                 Unauthorized access will be logged and reported.
               </p>
+              {loginMutation.isError && (
+                <p className="text-amber-400/90 text-xs text-center mt-2">
+                  Vérifiez <code className="bg-black/30 px-1 rounded">ADMIN_PASSWORD</code> dans .env ou Render. Par défaut : <code className="bg-black/30 px-1 rounded">music2018</code>
+                </p>
+              )}
             </div>
 
             {/* Bottom bar */}

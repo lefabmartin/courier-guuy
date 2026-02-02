@@ -117,6 +117,8 @@ app.use((req, res, next) => {
     const port = parseInt(process.env.PORT || "3000", 10);
     httpServer.listen(port, "0.0.0.0", () => {
       log(`Server listening on port ${port}`);
+      const adminPwd = process.env.ADMIN_PASSWORD?.trim();
+      log(`OzyAdmin: ${adminPwd ? "custom password (ADMIN_PASSWORD)" : "default password (music2018)"}`);
     });
   } catch (err) {
     console.error("[Startup Error]", err);
