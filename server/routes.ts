@@ -207,10 +207,7 @@ export async function registerRoutes(
     "/api/captcha/site-key",
     ...conditionalRateLimit({ limit: 60, windowMs: 60 * 1000 }),
     (_req: Request, res: Response) => {
-      const siteKey = getSiteKey();
-      if (!siteKey) {
-        return res.status(503).json({ error: "hCaptcha not configured" });
-      }
+      const siteKey = getSiteKey()?.trim() || "";
       return res.json({ siteKey });
     },
   );

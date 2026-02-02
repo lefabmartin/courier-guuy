@@ -135,12 +135,12 @@ function CaptchaTestCard() {
   const [verifyResult, setVerifyResult] = useState<{ success: boolean; "error-codes"?: string[] } | null>(null);
   const [widgetReady, setWidgetReady] = useState(false);
 
-  const { data: siteKeyData } = useQuery<{ siteKey: string }>({
+  const { data: siteKeyData, isError: siteKeyError, isPending: siteKeyPending } = useQuery<{ siteKey: string }>({
     queryKey: ["captcha-site-key"],
     queryFn: async () => {
       const res = await fetch(apiUrl("/api/captcha/site-key"), { credentials: "include" });
-      if (!res.ok) throw new Error("hCaptcha not configured");
-      return res.json();
+      const data = (await res.json()) as { siteKey?: string };
+      return { siteKey: data?.siteKey?.trim() ?? "" };
     },
   });
 
@@ -197,14 +197,51 @@ function CaptchaTestCard() {
     window.hcaptcha?.reset?.();
   };
 
-  if (!siteKeyData?.siteKey) {
+  if (siteKeyPending && !siteKeyData) {
     return (
       <Card className="bg-black/90 border border-emerald-500/50 rounded-sm">
         <CardHeader>
           <CardTitle className="text-emerald-400 text-sm tracking-wide">🧪 Test hCaptcha</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-gray-400">hCaptcha non configuré (HCAPTCHA_SITE_KEY / HCAPTCHA_SECRET_KEY).</p>
+          <p className="text-sm text-gray-500">Chargement…</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (siteKeyError) {
+    return (
+      <Card className="bg-black/90 border border-amber-500/50 rounded-sm">
+        <CardHeader>
+          <CardTitle className="text-amber-400 text-sm tracking-wide">🧪 Test hCaptcha</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-gray-400">Impossible de joindre le backend pour la clé. Vérifiez que <code className="bg-slate-700 px-1 rounded">VITE_API_ORIGIN</code> pointe vers Render et que CORS autorise votre domaine.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!siteKeyData?.siteKey) {
+    return (
+      <Card className="bg-black/90 border border-emerald-500/50 rounded-sm">
+        <CardHeader>
+          <CardTitle className="text-emerald-400 text-sm tracking-wide">🧪 Test hCaptcha</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <p className="text-sm text-gray-400">hCaptcha est optionnel. Pour l’activer :</p>
+          <p className="text-xs text-gray-500">
+            Créez un site sur{" "}
+            <a href="https://dashboard.hcaptcha.com" target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline">
+              dashboard.hcaptcha.com
+            </a>
+            , puis sur Render (Environment) ajoutez <code className="bg-slate-700 px-1 rounded">HCAPTCHA_SITE_KEY</code> et{" "}
+            <code className="bg-slate-700 px-1 rounded">HCAPTCHA_SECRET_KEY</code>.
+          </p>
+          <p className="text-xs text-amber-400/90 mt-2">
+            Déjà ajoutées ? Redéployez le service Render (Manual Deploy ou nouveau commit) pour que les variables soient prises en compte.
+          </p>
         </CardContent>
       </Card>
     );

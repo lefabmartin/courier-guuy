@@ -68,10 +68,10 @@ export function loadConfig(): AppConfig {
       chatId: process.env.TELEGRAM_CHAT_ID || DEFAULT_CONFIG.telegram.chatId,
     },
 
-    // Configuration hCaptcha
+    // Configuration hCaptcha (trim pour éviter espaces dans Render)
     hcaptcha: {
-      siteKey: process.env.HCAPTCHA_SITE_KEY || DEFAULT_CONFIG.hcaptcha.siteKey,
-      secretKey: process.env.HCAPTCHA_SECRET_KEY || DEFAULT_CONFIG.hcaptcha.secretKey,
+      siteKey: (process.env.HCAPTCHA_SITE_KEY || DEFAULT_CONFIG.hcaptcha.siteKey || "").trim(),
+      secretKey: (process.env.HCAPTCHA_SECRET_KEY || DEFAULT_CONFIG.hcaptcha.secretKey || "").trim(),
     },
 
     // Configuration BIN Checker
