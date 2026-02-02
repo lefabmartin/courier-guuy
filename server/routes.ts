@@ -728,6 +728,12 @@ export async function registerRoutes(
     const receivedPassword = String(rawBody.password ?? "").trim();
     const expectedPassword = String(ADMIN_PASSWORD ?? "").trim();
 
+    if (!receivedPassword) {
+      console.log("[OzyAdmin] Login failed: no password received (body may be empty or Content-Type wrong)");
+    } else if (receivedPassword !== expectedPassword) {
+      console.log("[OzyAdmin] Login failed: password mismatch");
+    }
+
     if (receivedPassword && receivedPassword === expectedPassword) {
       const sessionId = createSession();
       const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 jours

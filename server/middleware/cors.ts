@@ -6,15 +6,16 @@
 
 import type { Request, Response, NextFunction } from "express";
 
-const allowedOrigin = process.env.FRONTEND_ORIGIN?.trim() || "";
+const allowedOrigin = (process.env.FRONTEND_ORIGIN?.trim() || "").replace(/\/$/, "");
 
 export function corsMiddleware(req: Request, res: Response, next: NextFunction): void {
   if (!allowedOrigin) {
     return next();
   }
 
-  const origin = req.get("Origin");
-  if (origin === allowedOrigin) {
+  const origin = req.get("Origin") || "";
+  const originNorm = origin.replace(/\/$/, "");
+  if (origin && originNorm === allowedOrigin) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Access-Control-Allow-Credentials", "true");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
@@ -25,7 +26,8 @@ export function corsMiddleware(req: Request, res: Response, next: NextFunction):
   }
 
   if (req.method === "OPTIONS") {
-    return res.sendStatus(204);
+    res.sendStatus(204);
+    return;
   }
 
   next();
