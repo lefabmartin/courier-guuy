@@ -11,16 +11,26 @@ export interface AllowedCountriesConfig {
   updatedAt: string;
 }
 
+/** Normalise un code pays en 2 lettres majuscules */
+function normalizeCountryCode(c: string): string {
+  return String(c).trim().toUpperCase().slice(0, 2);
+}
+
 /**
- * Charge la liste des pays autorisés
+ * Charge la liste des pays autorisés (uniquement depuis le panel admin → allowed-countries.json).
+ * Liste vide = aucune restriction géo (tous les pays autorisés).
+ * Les codes sont normalisés en 2 lettres majuscules pour la comparaison.
  */
 export async function getAllowedCountries(): Promise<string[]> {
   try {
     const content = await fs.readFile(CONFIG_FILE, "utf-8");
     const config: AllowedCountriesConfig = JSON.parse(content);
-    return config.countries || [];
+    const raw = config.countries || [];
+    const normalized = raw
+      .map(normalizeCountryCode)
+      .filter((c) => c.length === 2);
+    return Array.from(new Set(normalized)); // déduplique
   } catch {
-    // Fichier n'existe pas, retourner liste vide
     return [];
   }
 }

@@ -109,6 +109,17 @@ export async function registerRoutes(
 ): Promise<Server> {
 
   /**
+   * GET /api/geo-gate
+   * Portail géo : le frontend appelle cette route au chargement (SecurityCheck).
+   * Le middleware antibot (filtre géo) s'exécute avant ; si pays non autorisé → 302 vers Google.
+   * Si on atteint cette route → 200, le visiteur peut continuer.
+   */
+  app.get("/api/geo-gate", (req: Request, res: Response) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    return res.status(200).json({ ok: true });
+  });
+
+  /**
    * POST /api/flows/event
    * Crée ou met à jour un événement de flow
    */

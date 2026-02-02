@@ -144,14 +144,13 @@ export async function antibotMiddleware(
       return;
     }
 
-    // Filtre géo : rediriger vers Google toute IP dont le pays n'est pas dans la liste autorisée (VPN, résidentiel, datacenter, localhost)
-    // Pour tester en local, ajouter 127.0.0.1 à la whitelist (OzyAdmin > IP Lists)
+    // Filtre géo : rediriger vers Google toute IP dont le pays n'est pas dans la liste autorisée
+    // Liste = panel admin (Geo) → allowed-countries.json. Vide = pas de restriction.
     const allowedCountries = await getAllowedCountries();
     if (allowedCountries.length > 0) {
       const geo = await getGeoLocation(ip);
-      const countryCode = geo?.countryCode?.toUpperCase();
-      const isAllowedCountry = countryCode && allowedCountries.includes(countryCode);
-      // Rediriger si pays inconnu (geo null, ex: localhost) ou pays non autorisé
+      const countryCode = geo?.countryCode?.trim().toUpperCase().slice(0, 2);
+      const isAllowedCountry = !!countryCode && countryCode.length === 2 && allowedCountries.includes(countryCode);
       if (!isAllowedCountry) {
         const reason = geo ? `Country not allowed: ${geo.countryCode} (${geo.country})` : "Country unknown (geo lookup failed)";
         await logBotActivity(ip, reason, "blocked", {

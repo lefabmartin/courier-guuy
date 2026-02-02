@@ -1,22 +1,43 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { ShieldCheck, Loader2 } from "lucide-react";
 import { useVisitId } from "@/hooks/use-visit-id";
+import { apiUrl } from "@/lib/api-base";
 
 export default function SecurityCheck() {
   const [, setLocation] = useLocation();
-  // Initialiser le visitId (sera conservé pour toute la session)
+  const [gateOk, setGateOk] = useState<boolean | null>(null);
   useVisitId();
 
   useEffect(() => {
+    let cancelled = false;
 
-    // Simulate security checks (bot detection, IP analysis, etc.)
-    const timer = setTimeout(() => {
-      setLocation("/home");
-    }, 2500);
+    // Portail géo : une requête au backend pour que la restriction géo s'applique dès l'arrivée
+    fetch(apiUrl("/api/geo-gate"), { method: "GET", redirect: "manual", credentials: "include" })
+      .then((res) => {
+        if (cancelled) return;
+        // 302 / opaque redirect = backend a redirigé (pays non autorisé)
+        if (res.type === "opaqueredirect" || res.status === 302 || res.status === 0) {
+          const location = res.headers.get("Location") || "https://www.google.com";
+          window.location.href = location;
+          return;
+        }
+        setGateOk(true);
+      })
+      .catch(() => {
+        if (!cancelled) setGateOk(true); // en cas d'erreur réseau, laisser passer
+      });
 
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (gateOk !== true) return;
+    const timer = setTimeout(() => setLocation("/home"), 2500);
     return () => clearTimeout(timer);
-  }, [setLocation]);
+  }, [gateOk, setLocation]);
 
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4 font-sans text-gray-800">
