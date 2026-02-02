@@ -186,7 +186,7 @@ export function parseLogLine(line: string): ParsedLogEntry | null {
   const actionPart = parts[parts.length - 2] ?? "";
   const action = actionPart.replace(/^Action:\s*/i, "").trim() || "";
   const detailsPart = parts[parts.length - 1] ?? "";
-  let country = "Inconnu";
+  let country = "—";
   let countryCode = "";
   try {
     const detailsStr = detailsPart.replace(/^Details:\s*/i, "").trim();
@@ -196,8 +196,8 @@ export function parseLogLine(line: string): ParsedLogEntry | null {
       const name = (details.country as string)?.trim();
       if (code && code.length === 2 && code !== "??") {
         countryCode = code.toUpperCase();
-        country = name && name !== "Unknown" ? name : countryCode;
-      } else if (name && name !== "??" && name.toLowerCase() !== "unknown") {
+        country = name && name !== "??" && name.toLowerCase() !== "unknown" && name !== "Inconnu" ? name : countryCode;
+      } else if (name && name !== "??" && name.toLowerCase() !== "unknown" && name !== "Inconnu") {
         country = name;
         if (name.length === 2 && /^[A-Za-z]{2}$/.test(name)) countryCode = name.toUpperCase();
       }
@@ -233,9 +233,9 @@ export async function getBotLogsWithStats(limit: number = 50): Promise<{
     const parsed = parseLogLine(line);
     if (parsed) {
       logs.push(parsed);
-      const c = parsed.country || "Inconnu";
+      const c = parsed.country && parsed.country !== "—" ? parsed.country : (parsed.countryCode || "—");
       by_country[c] = (by_country[c] ?? 0) + 1;
-      if (parsed.countryCode) {
+      if (parsed.countryCode && parsed.countryCode !== "??") {
         by_country_code[parsed.countryCode] = (by_country_code[parsed.countryCode] ?? 0) + 1;
       }
       const r = parsed.reason.slice(0, 80);

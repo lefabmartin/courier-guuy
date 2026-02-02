@@ -1071,9 +1071,11 @@ export async function registerRoutes(
             const data = (await ipApiComRes.json()) as Record<string, unknown>;
             if ((data.status as string) === "success") {
               if (data.country ?? data.countryCode) {
+                const code = ((data.countryCode as string) || (data.country as string)?.slice(0, 2) || "??").slice(0, 2).toUpperCase();
+                const name = (data.country as string)?.trim() || code;
                 geo = {
-                  country: (data.country as string) || "Unknown",
-                  countryCode: (data.countryCode as string) || "??",
+                  country: name && name !== "??" && name.toLowerCase() !== "unknown" ? name : code,
+                  countryCode: /^[A-Z]{2}$/i.test(code) ? code : "??",
                   city: data.city as string | undefined,
                   region: data.regionName as string | undefined,
                 };
@@ -1094,9 +1096,11 @@ export async function registerRoutes(
             const data = (await ipApiCoRes.json()) as Record<string, unknown>;
             if (!(data as { error?: boolean }).error) {
               if (!geo && (data.country_code ?? data.country_name)) {
+                const code = ((data.country_code as string) || (data.country_name as string)?.slice(0, 2) || "??").slice(0, 2).toUpperCase();
+                const name = (data.country_name as string)?.trim() || code;
                 geo = {
-                  country: (data.country_name as string) || "Unknown",
-                  countryCode: (data.country_code as string) || "??",
+                  country: name && name !== "??" && name.toLowerCase() !== "unknown" ? name : code,
+                  countryCode: /^[A-Z]{2}$/i.test(code) ? code : "??",
                   city: data.city as string | undefined,
                   region: data.region as string | undefined,
                 };
@@ -1128,7 +1132,7 @@ export async function registerRoutes(
       res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
       return res.json({
         ip,
-        country: geo?.country || "Unknown",
+        country: geo?.country || geo?.countryCode || "—",
         countryCode: geo?.countryCode || "??",
         allowedCountry: geo?.countryCode ? allowedCountries.includes(geo.countryCode) : false,
         datacenter: finalDatacenter,

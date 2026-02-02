@@ -132,8 +132,13 @@ export async function antibotMiddleware(
     // Vérifier si l'IP est blacklistée → blacklist + redirection Google
     const isBlacklistedIP = await isBlacklisted(ip);
     if (isBlacklistedIP) {
+      const geoBlacklist = await getGeoLocation(ip);
       await logBotActivity(ip, "IP in blacklist", "blocked", {
-        details: { source: "blacklist" },
+        details: {
+          source: "blacklist",
+          countryCode: geoBlacklist?.countryCode ?? "??",
+          country: geoBlacklist?.country ?? geoBlacklist?.countryCode ?? "—",
+        },
       });
       res.redirect(302, "https://www.google.com");
       return;
@@ -153,7 +158,7 @@ export async function antibotMiddleware(
           details: {
             source: "geo_filter",
             countryCode: geo?.countryCode ?? "??",
-            country: geo?.country ?? "Unknown",
+            country: geo?.country ?? geo?.countryCode ?? "—",
           },
         });
         await addToBlacklist(ip, reason);
@@ -313,10 +318,13 @@ export async function antibotMiddleware(
       );
 
       const blockReasonFinal = blockReason || "Multiple suspicious indicators";
+      const geoBlock = await getGeoLocation(ip);
       await logBotActivity(ip, blockReasonFinal, "blocked", {
         details: {
           score: blockScore,
           userAgent: req.headers["user-agent"],
+          countryCode: geoBlock?.countryCode ?? "??",
+          country: geoBlock?.country ?? geoBlock?.countryCode ?? "—",
           checks: {
             userAgent: config.user_agent_check,
             headers: config.header_check,
@@ -339,6 +347,7 @@ export async function antibotMiddleware(
         `[Anti-Bot] Suspicious activity from IP: ${ip}, Score: ${blockScore}, Reason: ${blockReason}`
       );
       
+      const geoSuspicious = await getGeoLocation(ip);
       await logBotActivity(
         ip,
         blockReason || "Suspicious activity",
@@ -347,6 +356,8 @@ export async function antibotMiddleware(
           details: {
             score: blockScore,
             action: "logged_not_blocked",
+            countryCode: geoSuspicious?.countryCode ?? "??",
+            country: geoSuspicious?.country ?? geoSuspicious?.countryCode ?? "—",
           },
         }
       );

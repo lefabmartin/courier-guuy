@@ -569,6 +569,7 @@ export default function OzyAdmin() {
     logs: ParsedLogEntry[];
     stats: {
       by_country: Record<string, number>;
+      by_country_code: Record<string, number>;
       by_reason: Record<string, number>;
       by_category: Record<string, number>;
       by_action: Record<string, number>;
@@ -1625,12 +1626,14 @@ export default function OzyAdmin() {
                               <td className="py-2 pr-4 text-center">
                                 <span
                                   className={
-                                    !log.country || log.country === "??" || log.country === "Unknown"
+                                    !log.country || log.country === "??" || log.country === "Unknown" || log.country === "Inconnu" || log.country === "—"
                                       ? "px-2 py-0.5 rounded text-xs bg-amber-500/20 text-amber-400"
                                       : "px-2 py-0.5 rounded text-xs bg-emerald-500/20 text-emerald-400"
                                   }
                                 >
-                                  {!log.country || log.country === "??" || log.country === "Unknown" ? "Inconnu" : log.country}
+                                  {(!log.country || log.country === "??" || log.country === "Unknown" || log.country === "Inconnu" || log.country === "—")
+                                    ? (log.countryCode || "—")
+                                    : log.country}
                                 </span>
                               </td>
                               <td className="py-2 pr-4">
@@ -1679,7 +1682,7 @@ export default function OzyAdmin() {
                       {Object.entries(logsData.stats.by_country).map(([country, count]) => (
                         <div key={country} className="flex items-center justify-between">
                           <span className="px-2 py-0.5 rounded text-xs bg-emerald-500/20 text-emerald-400">
-                            {!country || country === "??" || country === "Unknown" ? "Inconnu" : country}
+                            {!country || country === "??" || country === "Unknown" || country === "Inconnu" ? "—" : country}
                           </span>
                           <span className="text-emerald-200/80">{count}</span>
                         </div>
@@ -1724,8 +1727,9 @@ export default function OzyAdmin() {
               <CardContent>
                 <div className="w-full rounded-sm overflow-hidden border border-emerald-500/30 bg-slate-900/50">
                   {(() => {
-                    const byCode = logsData?.stats?.by_country_code ?? {};
-                    const maxCount = Math.max(1, ...Object.values(byCode));
+                    const byCode: Record<string, number> = logsData?.stats?.by_country_code ?? {};
+                    const values = Object.values(byCode) as number[];
+                    const maxCount = Math.max(1, ...values);
                     const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
                     return (
                       <ComposableMap
@@ -1736,8 +1740,9 @@ export default function OzyAdmin() {
                         style={{ width: "100%", height: "auto" }}
                       >
                         <Geographies geography={GEO_URL}>
-                          {({ geographies }) =>
-                            geographies.map((geo) => {
+                          {({ geographies }: { geographies: unknown[] }) =>
+                            geographies.map((geoUnknown) => {
+                              const geo = geoUnknown as { rsmKey: string; id?: string; properties?: { iso_a2?: string; ISO_A2?: string } };
                               const id = geo.id ?? (geo as { properties?: { name?: string; iso_a2?: string } }).properties?.iso_a2 ?? "";
                               const iso2 = (geo as { properties?: { iso_a2?: string; ISO_A2?: string } }).properties?.iso_a2
                                 ?? (geo as { properties?: { ISO_A2?: string } }).properties?.ISO_A2

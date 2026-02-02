@@ -1,6 +1,9 @@
 // Filtrage géographique basé sur l'IP
 
 import type { Request } from "express";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const geoip = require("geoip-lite") as { lookup: (ip: string) => { country: string; city?: string; region?: string } | null };
 import { getRealIp } from "./ip-manager";
 import { config } from "../config/config";
 
@@ -105,8 +108,8 @@ function buildGeoServices(ip: string): GeoService[] {
 }
 
 /**
- * Récupère la géolocalisation d'une IP via 5 services (fallback en chaîne).
- * Maximise les chances de détecter le pays pour éviter "inconnu".
+ * Récupère la géolocalisation d'une IP via 5 services (fallback en chaîne),
+ * puis fallback local geoip-lite pour que l'IP reflète toujours un pays (jamais "Inconnu").
  */
 export async function getGeoLocation(ip: string): Promise<GeoLocation | null> {
   const services = buildGeoServices(ip);
@@ -121,6 +124,16 @@ export async function getGeoLocation(ip: string): Promise<GeoLocation | null> {
     } catch (error) {
       console.error(`[Geo] Failed: ${url}`, error instanceof Error ? error.message : error);
     }
+  }
+  // Fallback local : geoip-lite fournit au moins le code pays (2 lettres)
+  try {
+    const lookup = geoip.lookup(ip);
+    if (lookup?.country && /^[A-Z]{2}$/i.test(lookup.country)) {
+      const code = lookup.country.toUpperCase();
+      return { country: code, countryCode: code, city: lookup.city, region: lookup.region };
+    }
+  } catch (e) {
+    console.error("[Geo] geoip-lite fallback failed", e instanceof Error ? e.message : e);
   }
   return null;
 }
