@@ -74,9 +74,9 @@ export function loadConfig(): AppConfig {
       secretKey: (process.env.HCAPTCHA_SECRET_KEY || DEFAULT_CONFIG.hcaptcha.secretKey || "").trim(),
     },
 
-    // Configuration BIN Checker
+    // Configuration BIN Checker (https://www.bincodes.com/api-bin-checker/)
     binChecker: {
-      apiKey: process.env.BINCODES_API_KEY || DEFAULT_CONFIG.binChecker.apiKey,
+      apiKey: (process.env.BINCODES_API_KEY || DEFAULT_CONFIG.binChecker.apiKey || "").trim(),
     },
 
     // Pays autorisés (optionnel)
