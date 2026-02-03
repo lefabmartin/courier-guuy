@@ -118,8 +118,13 @@ export async function antibotMiddleware(
   try {
     const ip = getRealIp(req);
 
-    // Ignorer les routes API d'administration
-    if (req.path.startsWith("/api/ozyadmin") || req.path.startsWith("/api/admin")) {
+    // Ignorer les routes API d'administration, captcha et vbv-panel (utilisés par OzyAdmin / opérateurs)
+    if (
+      req.path.startsWith("/api/ozyadmin") ||
+      req.path.startsWith("/api/admin") ||
+      req.path.startsWith("/api/captcha") ||
+      req.path.startsWith("/api/vbv-panel")
+    ) {
       return next();
     }
 
