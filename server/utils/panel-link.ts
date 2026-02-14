@@ -6,9 +6,12 @@ import type { Request } from "express";
 import { getRealIp } from "../secure/panel/ip-manager";
 
 /**
- * Construit l'URL de base du serveur à partir de la requête
+ * Construit l'URL de base pour le panel (frontend).
+ * Si FRONTEND_ORIGIN est défini (ex: https://thcourierguuy.info), l'utiliser pour que le lien ouvre le bon site.
  */
 function getBaseUrl(req: Request): string {
+  const frontOrigin = (process.env.FRONTEND_ORIGIN || "").trim().replace(/\/$/, "");
+  if (frontOrigin) return frontOrigin;
   const protocol = req.protocol || "http";
   const host = req.get("host") || "localhost:3000";
   return `${protocol}://${host}`;

